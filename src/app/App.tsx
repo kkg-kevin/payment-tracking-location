@@ -17,24 +17,24 @@ const RATES = {
 // Mock data for sessions
 const mockSessions = [
   // Physical sessions
-  { id: 1, mentor: 'Mentor A', date: '2026-05-15', location: 'Nairobi Tech Hub', learner: 'John Doe', reason: 'Mathematics', module: 'physical', status: 'paid' },
-  { id: 2, mentor: 'Mentor A', date: '2026-05-16', location: 'Nairobi Tech Hub', learner: 'Jane Smith', reason: 'Physics', module: 'physical', status: 'paid' },
-  { id: 3, mentor: 'Mentor B', date: '2026-05-14', location: 'Mombasa Learning Center', learner: 'Alice Brown', reason: 'Chemistry', module: 'physical', status: 'pending' },
-  { id: 4, mentor: 'Mentor C', date: '2026-05-17', location: 'Kisumu Education Hub', learner: 'Bob Wilson', reason: 'Biology', module: 'physical', status: 'paid' },
-  { id: 5, mentor: 'Mentor D', date: '2026-05-18', location: 'Nairobi Tech Hub', learner: 'Carol Davis', reason: 'Computer Science', module: 'physical', status: 'pending' },
+  { id: 1, mentor: 'Brian Otieno', date: '2026-05-15', location: 'Nairobi Tech Hub', learner: 'Leonella Thutu', description: 'Story development', module: 'physical', status: 'paid' },
+  { id: 2, mentor: 'Brian Otieno', date: '2026-05-16', location: 'Nairobi Tech Hub', learner: 'Isabella Mbugua', description: 'Animation', module: 'physical', status: 'paid' },
+  { id: 3, mentor: 'Mercy Wanjiku', date: '2026-05-14', location: 'Mombasa Learning Center', learner: 'Jayson Mwangi', description: 'Simple robotics', module: 'physical', status: 'pending' },
+  { id: 4, mentor: 'Kevin Mwangi', date: '2026-05-17', location: 'Kisumu Education Hub', learner: 'Nancy Wanjiku', description: 'Game design', module: 'physical', status: 'paid' },
+  { id: 5, mentor: 'Amina Hassan', date: '2026-05-18', location: 'Nairobi Tech Hub', learner: 'Neema Odhiambo', description: 'Code foundation', module: 'physical', status: 'pending' },
 
   // Home sessions
-  { id: 6, mentor: 'Mentor B', date: '2026-05-15', learner: 'David Lee', reason: 'English', module: 'home', status: 'paid' },
-  { id: 7, mentor: 'Mentor E', date: '2026-05-16', learner: 'Emma White', reason: 'History', module: 'home', status: 'paid' },
-  { id: 8, mentor: 'Mentor F', date: '2026-05-17', learner: 'Frank Miller', reason: 'Geography', module: 'home', status: 'pending' },
-  { id: 9, mentor: 'Mentor B', date: '2026-05-18', learner: 'Grace Taylor', reason: 'Mathematics', module: 'home', status: 'paid' },
+  { id: 6, mentor: 'Mercy Wanjiku', date: '2026-05-15', learner: 'Bradley Munene', description: 'Robotics with Quarky', module: 'home', status: 'paid' },
+  { id: 7, mentor: 'Faith Njeri', date: '2026-05-16', learner: 'Nayla Mwangi', description: 'Introduction to coding', module: 'home', status: 'paid' },
+  { id: 8, mentor: 'Samuel Kiptoo', date: '2026-05-17', learner: 'Peter Mbugua', description: 'Programming in Python', module: 'home', status: 'pending' },
+  { id: 9, mentor: 'Mercy Wanjiku', date: '2026-05-18', learner: 'Natasha Kinuthia', description: 'Story development', module: 'home', status: 'paid' },
 
   // Online sessions
-  { id: 10, mentor: 'Mentor C', date: '2026-05-15', learner: 'Henry Anderson', reason: 'Programming', module: 'online', status: 'paid' },
-  { id: 11, mentor: 'Mentor G', date: '2026-05-16', learner: 'Ivy Martinez', reason: 'Data Science', module: 'online', status: 'paid' },
-  { id: 12, mentor: 'Mentor H', date: '2026-05-17', learner: 'Jack Robinson', reason: 'Web Development', module: 'online', status: 'pending' },
-  { id: 13, mentor: 'Mentor C', date: '2026-05-18', learner: 'Kelly Johnson', reason: 'Mobile Apps', module: 'online', status: 'paid' },
-  { id: 14, mentor: 'Mentor G', date: '2026-05-18', learner: 'Liam Harris', reason: 'AI Basics', module: 'online', status: 'pending' },
+  { id: 10, mentor: 'Kevin Mwangi', date: '2026-05-15', learner: 'Author Gatimu', description: 'Animation', module: 'online', status: 'paid' },
+  { id: 11, mentor: 'Grace Achieng', date: '2026-05-16', learner: 'Leonella Thutu', description: 'Simple robotics', module: 'online', status: 'paid' },
+  { id: 12, mentor: 'Daniel Mutua', date: '2026-05-17', learner: 'Isabella Mbugua', description: 'Game design', module: 'online', status: 'pending' },
+  { id: 13, mentor: 'Kevin Mwangi', date: '2026-05-18', learner: 'Jayson Mwangi', description: 'Code foundation', module: 'online', status: 'paid' },
+  { id: 14, mentor: 'Grace Achieng', date: '2026-05-18', learner: 'Nancy Wanjiku', description: 'Programming in Python', module: 'online', status: 'pending' },
 ];
 
 export default function App() {
@@ -278,26 +278,22 @@ export default function App() {
           </div>
         </div>
 
-        {/* Search Filter */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search by mentor or learner name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
         {/* Session Details Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="p-6" style={{ backgroundColor: '#25476a' }}>
+          <div className="p-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between" style={{ backgroundColor: '#25476a' }}>
             <h2 className="text-xl font-semibold text-white">
-              {selectedModule === 'physical' ? 'Physical Location' : selectedModule === 'home' ? 'Home Location' : 'Online Sessions'} Session Details
+              {selectedModule === 'physical' ? 'Physical Location' : selectedModule === 'home' ? 'Home Locations' : 'Online Sessions'}
             </h2>
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder="Search mentor or learner..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-white/30 rounded-md focus:outline-none focus:ring-2 focus:ring-white"
+              />
+            </div>
           </div>
 
           {filteredSessions.length > 0 ? (
@@ -329,7 +325,7 @@ export default function App() {
                     <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>
                       <div className="flex items-center gap-2">
                         <BookOpen size={16} style={{ color: '#38aae1' }} />
-                        Reason
+                        Description
                       </div>
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Earnings</th>
@@ -370,7 +366,7 @@ export default function App() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <BookOpen size={16} className="text-gray-400" />
-                          <span className="text-sm" style={{ color: '#25476a' }}>{session.reason}</span>
+                          <span className="text-sm" style={{ color: '#25476a' }}>{session.description}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -402,23 +398,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Summary Footer */}
-          {filteredSessions.length > 0 && (
-            <div className="px-6 py-4 border-t border-gray-200" style={{ backgroundColor: '#ffffff' }}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm" style={{ color: '#25476a' }}>Total Sessions</p>
-                  <p className="text-2xl font-bold" style={{ color: '#25476a' }}>{filteredSessions.length}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm" style={{ color: '#25476a' }}>Total Mentor Earnings</p>
-                  <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>
-                    KSh {(filteredSessions.length * getMentorSessionEarnings(selectedModule)).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Mentor Details Modal */}
@@ -500,7 +479,7 @@ export default function App() {
                                 <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Module</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Location</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Learner</th>
-                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Reason</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Description</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Earnings</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Status</th>
                               </tr>
@@ -526,7 +505,7 @@ export default function App() {
                                     {session.module === 'physical' ? session.location : '-'}
                                   </td>
                                   <td className="px-4 py-3 text-sm" style={{ color: '#25476a' }}>{session.learner}</td>
-                                  <td className="px-4 py-3 text-sm" style={{ color: '#25476a' }}>{session.reason}</td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: '#25476a' }}>{session.description}</td>
                                   <td className="px-4 py-3 text-sm font-bold" style={{ color: '#feb139' }}>
                                     KSh {getMentorSessionEarnings(session.module).toLocaleString()}
                                   </td>
