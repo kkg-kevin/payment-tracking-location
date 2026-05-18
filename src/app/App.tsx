@@ -138,48 +138,48 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full min-w-0 bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
+      <div className="w-full min-w-0 max-w-screen-2xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Payment Tracking Dashboard</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Payment Tracking Dashboard</h1>
           <p className="text-gray-600">Track earnings across Physical, Home, and Online sessions</p>
         </div>
 
         {/* Dashboard Summary */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8" style={{ borderTop: '4px solid #25476a' }}>
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8" style={{ borderTop: '4px solid #25476a' }}>
           <h2 className="text-xl font-semibold mb-4" style={{ color: '#25476a' }}>Overall Earnings Summary</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Total Earnings</p>
-              <p className="text-2xl font-bold" style={{ color: '#25476a' }}>KSh {totalEarnings.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#25476a' }}>KSh {totalEarnings.toLocaleString()}</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Physical Location</p>
-              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {physicalEarnings.total.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {physicalEarnings.total.toLocaleString()}</p>
               <p className="text-xs text-gray-500 mt-1">{physicalEarnings.sessionCount} sessions</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Home Location</p>
-              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {homeEarnings.total.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {homeEarnings.total.toLocaleString()}</p>
               <p className="text-xs text-gray-500 mt-1">{homeEarnings.sessionCount} sessions</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Online Sessions</p>
-              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {onlineEarnings.total.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {onlineEarnings.total.toLocaleString()}</p>
               <p className="text-xs text-gray-500 mt-1">{onlineEarnings.sessionCount} sessions</p>
             </div>
           </div>
         </div>
 
         {/* Module Cards */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <h2 className="text-lg font-semibold mb-4" style={{ color: '#25476a' }}>Select Payment Module</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
             {/* Physical Location Card */}
             <button
               onClick={() => setSelectedModule('physical')}
-              className={`p-6 rounded-lg text-left transition-all ${
+              className={`p-4 sm:p-6 rounded-lg text-left transition-all ${
                 selectedModule === 'physical'
                   ? 'shadow-xl ring-2 ring-offset-2'
                   : 'bg-white shadow-md hover:shadow-lg'
@@ -215,7 +215,7 @@ export default function App() {
             {/* Home Location Card */}
             <button
               onClick={() => setSelectedModule('home')}
-              className={`p-6 rounded-lg text-left transition-all ${
+              className={`p-4 sm:p-6 rounded-lg text-left transition-all ${
                 selectedModule === 'home'
                   ? 'shadow-xl ring-2 ring-offset-2'
                   : 'bg-white shadow-md hover:shadow-lg'
@@ -247,7 +247,7 @@ export default function App() {
             {/* Online Sessions Card */}
             <button
               onClick={() => setSelectedModule('online')}
-              className={`p-6 rounded-lg text-left transition-all ${
+              className={`p-4 sm:p-6 rounded-lg text-left transition-all ${
                 selectedModule === 'online'
                   ? 'shadow-xl ring-2 ring-offset-2'
                   : 'bg-white shadow-md hover:shadow-lg'
@@ -279,12 +279,12 @@ export default function App() {
         </div>
 
         {/* Session Details Table */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="p-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between" style={{ backgroundColor: '#25476a' }}>
+        <div className="bg-white rounded-lg shadow-md overflow-hidden min-w-0">
+          <div className="p-4 sm:p-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between" style={{ backgroundColor: '#25476a' }}>
             <h2 className="text-xl font-semibold text-white">
               {selectedModule === 'physical' ? 'Physical Location' : selectedModule === 'home' ? 'Home Locations' : 'Online Sessions'}
             </h2>
-            <div className="relative w-full md:w-80">
+            <div className="relative w-full lg:w-80">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
               <input
                 type="text"
@@ -297,7 +297,59 @@ export default function App() {
           </div>
 
           {filteredSessions.length > 0 ? (
-            <div className="overflow-x-auto">
+            <>
+            <div className="block md:hidden divide-y divide-gray-200">
+              {filteredSessions.map((session) => (
+                <div key={session.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMentor(session.mentor)}
+                      className="text-left font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-sm"
+                      style={{ color: '#25476a' }}
+                      aria-label={`View details for ${session.mentor}`}
+                    >
+                      {session.mentor}
+                    </button>
+                    {session.status === 'paid' ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        <CheckCircle size={14} />
+                        Paid
+                      </span>
+                    ) : (
+                      <span className="inline-flex shrink-0 items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                        <Clock size={14} />
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm" style={{ color: '#25476a' }}>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={15} className="text-gray-400" />
+                      <span>{format(new Date(session.date), 'MMM dd, yyyy')}</span>
+                    </div>
+                    {selectedModule === 'physical' && (
+                      <div className="flex items-center gap-2">
+                        <MapPin size={15} className="text-gray-400" />
+                        <span>{session.location}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <User size={15} className="text-gray-400" />
+                      <span>{session.learner}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <BookOpen size={15} className="text-gray-400" />
+                      <span>{session.description}</span>
+                    </div>
+                  </div>
+                  <p className="mt-3 font-bold" style={{ color: '#feb139' }}>
+                    KSh {getMentorSessionEarnings(selectedModule).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead style={{ backgroundColor: '#ffffff' }}>
                   <tr className="border-b border-gray-200">
@@ -392,8 +444,9 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            </>
           ) : (
-            <div className="p-12 text-center">
+            <div className="p-8 sm:p-12 text-center">
               <p className="text-gray-500">No sessions found matching your search criteria.</p>
             </div>
           )}
@@ -404,15 +457,15 @@ export default function App() {
         <Dialog.Root open={selectedMentor !== null} onOpenChange={(open) => !open && setSelectedMentor(null)}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
-            <Dialog.Content className="fixed top-1/2 left-1/2 z-50 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl max-w-4xl w-[calc(100vw-2rem)] max-h-[90vh] overflow-hidden">
+            <Dialog.Content className="fixed top-1/2 left-1/2 z-50 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl max-w-4xl w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-h-[90vh] overflow-hidden">
               {selectedMentor && (() => {
                 const mentorDetails = getMentorDetails(selectedMentor);
                 return (
                   <>
                     {/* Modal Header */}
-                    <div className="p-6 flex justify-between items-center" style={{ backgroundColor: '#25476a' }}>
+                    <div className="p-4 sm:p-6 flex justify-between items-start gap-4" style={{ backgroundColor: '#25476a' }}>
                       <div>
-                        <Dialog.Title className="text-2xl font-bold text-white">
+                        <Dialog.Title className="text-xl sm:text-2xl font-bold text-white">
                           {mentorDetails.name}
                         </Dialog.Title>
                         <Dialog.Description className="text-gray-200 mt-1">
@@ -425,9 +478,9 @@ export default function App() {
                     </div>
 
                     {/* Modal Body */}
-                    <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                    <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
                       {/* Summary Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
                         <div className="p-4 rounded-lg" style={{ backgroundColor: '#f0f4f8' }}>
                           <p className="text-sm text-gray-600 mb-1">Total Sessions</p>
                           <p className="text-2xl font-bold" style={{ color: '#25476a' }}>{mentorDetails.totalSessions}</p>
@@ -471,7 +524,7 @@ export default function App() {
                       {/* All Sessions List */}
                       <div>
                         <h3 className="text-lg font-semibold mb-3" style={{ color: '#25476a' }}>All Sessions</h3>
-                        <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="border border-gray-200 rounded-lg overflow-x-auto">
                           <table className="w-full">
                             <thead style={{ backgroundColor: '#f8fafc' }}>
                               <tr>
