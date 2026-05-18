@@ -1,0 +1,562 @@
+import { useState, useMemo } from 'react';
+import { Search, Calendar, MapPin, User, BookOpen, CheckCircle, Clock, X } from 'lucide-react';
+import { format } from 'date-fns';
+import * as Dialog from '@radix-ui/react-dialog';
+
+// Payment rates in KSh
+const RATES = {
+  mentor: {
+    physical: 904,
+    home: 904,
+    online: 500,
+  },
+  digifunzi: 500,
+  location: 500,
+};
+
+// Mock data for sessions
+const mockSessions = [
+  // Physical sessions
+  { id: 1, mentor: 'Mentor A', date: '2026-05-15', location: 'Nairobi Tech Hub', learner: 'John Doe', reason: 'Mathematics', module: 'physical', status: 'paid' },
+  { id: 2, mentor: 'Mentor A', date: '2026-05-16', location: 'Nairobi Tech Hub', learner: 'Jane Smith', reason: 'Physics', module: 'physical', status: 'paid' },
+  { id: 3, mentor: 'Mentor B', date: '2026-05-14', location: 'Mombasa Learning Center', learner: 'Alice Brown', reason: 'Chemistry', module: 'physical', status: 'pending' },
+  { id: 4, mentor: 'Mentor C', date: '2026-05-17', location: 'Kisumu Education Hub', learner: 'Bob Wilson', reason: 'Biology', module: 'physical', status: 'paid' },
+  { id: 5, mentor: 'Mentor D', date: '2026-05-18', location: 'Nairobi Tech Hub', learner: 'Carol Davis', reason: 'Computer Science', module: 'physical', status: 'pending' },
+
+  // Home sessions
+  { id: 6, mentor: 'Mentor B', date: '2026-05-15', learner: 'David Lee', reason: 'English', module: 'home', status: 'paid' },
+  { id: 7, mentor: 'Mentor E', date: '2026-05-16', learner: 'Emma White', reason: 'History', module: 'home', status: 'paid' },
+  { id: 8, mentor: 'Mentor F', date: '2026-05-17', learner: 'Frank Miller', reason: 'Geography', module: 'home', status: 'pending' },
+  { id: 9, mentor: 'Mentor B', date: '2026-05-18', learner: 'Grace Taylor', reason: 'Mathematics', module: 'home', status: 'paid' },
+
+  // Online sessions
+  { id: 10, mentor: 'Mentor C', date: '2026-05-15', learner: 'Henry Anderson', reason: 'Programming', module: 'online', status: 'paid' },
+  { id: 11, mentor: 'Mentor G', date: '2026-05-16', learner: 'Ivy Martinez', reason: 'Data Science', module: 'online', status: 'paid' },
+  { id: 12, mentor: 'Mentor H', date: '2026-05-17', learner: 'Jack Robinson', reason: 'Web Development', module: 'online', status: 'pending' },
+  { id: 13, mentor: 'Mentor C', date: '2026-05-18', learner: 'Kelly Johnson', reason: 'Mobile Apps', module: 'online', status: 'paid' },
+  { id: 14, mentor: 'Mentor G', date: '2026-05-18', learner: 'Liam Harris', reason: 'AI Basics', module: 'online', status: 'pending' },
+];
+
+export default function App() {
+  const [selectedModule, setSelectedModule] = useState('physical');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
+
+  // Filter sessions by selected module and search query
+  const filteredSessions = useMemo(() => {
+    return mockSessions.filter(session => {
+      const matchesModule = session.module === selectedModule;
+      const matchesSearch = searchQuery === '' ||
+        session.mentor.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        session.learner.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesModule && matchesSearch;
+    });
+  }, [selectedModule, searchQuery]);
+
+  // Calculate earnings for each module
+  const calculateModuleEarnings = (module: string) => {
+    const sessions = mockSessions.filter(s => s.module === module);
+    const sessionCount = sessions.length;
+
+    let mentorEarnings = 0;
+    if (module === 'physical' || module === 'home') {
+      mentorEarnings = sessionCount * RATES.mentor.physical;
+    } else {
+      mentorEarnings = sessionCount * RATES.mentor.online;
+    }
+
+    const digifunziEarnings = sessionCount * RATES.digifunzi;
+    const locationEarnings = module === 'physical' ? sessionCount * RATES.location : 0;
+    const total = mentorEarnings + digifunziEarnings + locationEarnings;
+
+    return { mentorEarnings, digifunziEarnings, locationEarnings, total, sessionCount };
+  };
+
+  // Calculate mentor-specific earnings
+  const calculateMentorStats = () => {
+    const mentorStats = new Map();
+
+    filteredSessions.forEach(session => {
+      if (!mentorStats.has(session.mentor)) {
+        mentorStats.set(session.mentor, { sessions: [], totalEarnings: 0, sessionCount: 0 });
+      }
+
+      const stats = mentorStats.get(session.mentor);
+      stats.sessions.push(session);
+      stats.sessionCount += 1;
+
+      if (selectedModule === 'physical' || selectedModule === 'home') {
+        stats.totalEarnings += RATES.mentor.physical;
+      } else {
+        stats.totalEarnings += RATES.mentor.online;
+      }
+    });
+
+    return mentorStats;
+  };
+
+  const physicalEarnings = calculateModuleEarnings('physical');
+  const homeEarnings = calculateModuleEarnings('home');
+  const onlineEarnings = calculateModuleEarnings('online');
+  const totalEarnings = physicalEarnings.total + homeEarnings.total + onlineEarnings.total;
+
+  const mentorStats = calculateMentorStats();
+
+  const getMentorSessionEarnings = (module: string) => (
+    module === 'online' ? RATES.mentor.online : RATES.mentor.physical
+  );
+
+  // Get all sessions for the selected mentor across all modules
+  const getMentorDetails = (mentorName: string) => {
+    const allMentorSessions = mockSessions.filter(s => s.mentor === mentorName);
+    const physicalSessions = allMentorSessions.filter(s => s.module === 'physical');
+    const homeSessions = allMentorSessions.filter(s => s.module === 'home');
+    const onlineSessions = allMentorSessions.filter(s => s.module === 'online');
+
+    const physicalEarnings = physicalSessions.length * RATES.mentor.physical;
+    const homeEarnings = homeSessions.length * RATES.mentor.home;
+    const onlineEarnings = onlineSessions.length * RATES.mentor.online;
+    const totalEarnings = physicalEarnings + homeEarnings + onlineEarnings;
+
+    const paidSessions = allMentorSessions.filter(s => s.status === 'paid').length;
+    const pendingSessions = allMentorSessions.filter(s => s.status === 'pending').length;
+
+    return {
+      name: mentorName,
+      allSessions: allMentorSessions,
+      physicalSessions,
+      homeSessions,
+      onlineSessions,
+      physicalEarnings,
+      homeEarnings,
+      onlineEarnings,
+      totalEarnings,
+      totalSessions: allMentorSessions.length,
+      paidSessions,
+      pendingSessions,
+    };
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Payment Tracking Dashboard</h1>
+          <p className="text-gray-600">Track earnings across Physical, Home, and Online sessions</p>
+        </div>
+
+        {/* Dashboard Summary */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8" style={{ borderTop: '4px solid #25476a' }}>
+          <h2 className="text-xl font-semibold mb-4" style={{ color: '#25476a' }}>Overall Earnings Summary</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Total Earnings</p>
+              <p className="text-2xl font-bold" style={{ color: '#25476a' }}>KSh {totalEarnings.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Physical Location</p>
+              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {physicalEarnings.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{physicalEarnings.sessionCount} sessions</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Home Location</p>
+              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {homeEarnings.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{homeEarnings.sessionCount} sessions</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Online Sessions</p>
+              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {onlineEarnings.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{onlineEarnings.sessionCount} sessions</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Module Cards */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-4" style={{ color: '#25476a' }}>Select Payment Module</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Physical Location Card */}
+            <button
+              onClick={() => setSelectedModule('physical')}
+              className={`p-6 rounded-lg text-left transition-all ${
+                selectedModule === 'physical'
+                  ? 'shadow-xl ring-2 ring-offset-2'
+                  : 'bg-white shadow-md hover:shadow-lg'
+              }`}
+              style={selectedModule === 'physical' ? { backgroundColor: '#25476a', color: 'white', ringColor: '#25476a' } : {}}
+            >
+              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'physical' ? 'text-white' : ''}`} style={selectedModule !== 'physical' ? { color: '#25476a' } : {}}>
+                Physical Location
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'physical' ? 'text-gray-200' : 'text-gray-600'}`}>Mentor</span>
+                  <span className="font-semibold">KSh {physicalEarnings.mentorEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'physical' ? 'text-gray-200' : 'text-gray-600'}`}>Digifunzi</span>
+                  <span className="font-semibold">KSh {physicalEarnings.digifunziEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'physical' ? 'text-gray-200' : 'text-gray-600'}`}>Location</span>
+                  <span className="font-semibold">KSh {physicalEarnings.locationEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t" style={selectedModule === 'physical' ? { borderColor: 'rgba(255,255,255,0.3)' } : {}}>
+                  <span className="font-bold">Total</span>
+                  <span className="font-bold text-lg">KSh {physicalEarnings.total.toLocaleString()}</span>
+                </div>
+                <p className={`text-xs mt-2 ${selectedModule === 'physical' ? 'text-gray-300' : 'text-gray-500'}`}>
+                  {physicalEarnings.sessionCount} sessions
+                </p>
+              </div>
+            </button>
+
+            {/* Home Location Card */}
+            <button
+              onClick={() => setSelectedModule('home')}
+              className={`p-6 rounded-lg text-left transition-all ${
+                selectedModule === 'home'
+                  ? 'shadow-xl ring-2 ring-offset-2'
+                  : 'bg-white shadow-md hover:shadow-lg'
+              }`}
+              style={selectedModule === 'home' ? { backgroundColor: '#38aae1', color: 'white', ringColor: '#38aae1' } : {}}
+            >
+              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'home' ? 'text-white' : ''}`} style={selectedModule !== 'home' ? { color: '#25476a' } : {}}>
+                Home Location
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'home' ? 'text-gray-200' : 'text-gray-600'}`}>Mentor</span>
+                  <span className="font-semibold">KSh {homeEarnings.mentorEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'home' ? 'text-gray-200' : 'text-gray-600'}`}>Digifunzi</span>
+                  <span className="font-semibold">KSh {homeEarnings.digifunziEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t" style={selectedModule === 'home' ? { borderColor: 'rgba(255,255,255,0.3)' } : {}}>
+                  <span className="font-bold">Total</span>
+                  <span className="font-bold text-lg">KSh {homeEarnings.total.toLocaleString()}</span>
+                </div>
+                <p className={`text-xs mt-2 ${selectedModule === 'home' ? 'text-gray-300' : 'text-gray-500'}`}>
+                  {homeEarnings.sessionCount} sessions
+                </p>
+              </div>
+            </button>
+
+            {/* Online Sessions Card */}
+            <button
+              onClick={() => setSelectedModule('online')}
+              className={`p-6 rounded-lg text-left transition-all ${
+                selectedModule === 'online'
+                  ? 'shadow-xl ring-2 ring-offset-2'
+                  : 'bg-white shadow-md hover:shadow-lg'
+              }`}
+              style={selectedModule === 'online' ? { backgroundColor: '#feb139', color: 'white', ringColor: '#feb139' } : {}}
+            >
+              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'online' ? 'text-white' : ''}`} style={selectedModule !== 'online' ? { color: '#25476a' } : {}}>
+                Online Sessions
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'online' ? 'text-gray-200' : 'text-gray-600'}`}>Mentor</span>
+                  <span className="font-semibold">KSh {onlineEarnings.mentorEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'online' ? 'text-gray-200' : 'text-gray-600'}`}>Digifunzi</span>
+                  <span className="font-semibold">KSh {onlineEarnings.digifunziEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t" style={selectedModule === 'online' ? { borderColor: 'rgba(255,255,255,0.3)' } : {}}>
+                  <span className="font-bold">Total</span>
+                  <span className="font-bold text-lg">KSh {onlineEarnings.total.toLocaleString()}</span>
+                </div>
+                <p className={`text-xs mt-2 ${selectedModule === 'online' ? 'text-gray-300' : 'text-gray-500'}`}>
+                  {onlineEarnings.sessionCount} sessions
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Search Filter */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search by mentor or learner name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Session Details Table */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="p-6" style={{ backgroundColor: '#25476a' }}>
+            <h2 className="text-xl font-semibold text-white">
+              {selectedModule === 'physical' ? 'Physical Location' : selectedModule === 'home' ? 'Home Location' : 'Online Sessions'} Session Details
+            </h2>
+          </div>
+
+          {filteredSessions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead style={{ backgroundColor: '#ffffff' }}>
+                  <tr className="border-b border-gray-200">
+                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>
+                      <div className="flex items-center gap-2">
+                        <User size={16} style={{ color: '#38aae1' }} />
+                        Mentor
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>
+                      <div className="flex items-center gap-2">
+                        <Calendar size={16} style={{ color: '#38aae1' }} />
+                        Date
+                      </div>
+                    </th>
+                    {selectedModule === 'physical' && (
+                      <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>
+                        <div className="flex items-center gap-2">
+                          <MapPin size={16} style={{ color: '#38aae1' }} />
+                          Location
+                        </div>
+                      </th>
+                    )}
+                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Learner</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>
+                      <div className="flex items-center gap-2">
+                        <BookOpen size={16} style={{ color: '#38aae1' }} />
+                        Reason
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Earnings</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredSessions.map((session) => (
+                    <tr key={session.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <User size={16} style={{ color: '#38aae1' }} />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMentor(session.mentor)}
+                            className="font-medium hover:underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 rounded-sm px-1"
+                            style={{ color: '#25476a' }}
+                            aria-label={`View details for ${session.mentor}`}
+                          >
+                            {session.mentor}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={16} className="text-gray-400" />
+                          <span className="text-sm" style={{ color: '#25476a' }}>{format(new Date(session.date), 'MMM dd, yyyy')}</span>
+                        </div>
+                      </td>
+                      {selectedModule === 'physical' && (
+                        <td className="px-6 py-4">
+                          <span className="text-sm" style={{ color: '#25476a' }}>{session.location}</span>
+                        </td>
+                      )}
+                      <td className="px-6 py-4">
+                        <span className="text-sm" style={{ color: '#25476a' }}>{session.learner}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <BookOpen size={16} className="text-gray-400" />
+                          <span className="text-sm" style={{ color: '#25476a' }}>{session.reason}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-bold" style={{ color: '#feb139' }}>
+                          KSh {getMentorSessionEarnings(selectedModule).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {session.status === 'paid' ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            <CheckCircle size={14} />
+                            Paid
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                            <Clock size={14} />
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-12 text-center">
+              <p className="text-gray-500">No sessions found matching your search criteria.</p>
+            </div>
+          )}
+
+          {/* Summary Footer */}
+          {filteredSessions.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-200" style={{ backgroundColor: '#ffffff' }}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm" style={{ color: '#25476a' }}>Total Sessions</p>
+                  <p className="text-2xl font-bold" style={{ color: '#25476a' }}>{filteredSessions.length}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm" style={{ color: '#25476a' }}>Total Mentor Earnings</p>
+                  <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>
+                    KSh {(filteredSessions.length * getMentorSessionEarnings(selectedModule)).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mentor Details Modal */}
+        <Dialog.Root open={selectedMentor !== null} onOpenChange={(open) => !open && setSelectedMentor(null)}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
+            <Dialog.Content className="fixed top-1/2 left-1/2 z-50 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl max-w-4xl w-[calc(100vw-2rem)] max-h-[90vh] overflow-hidden">
+              {selectedMentor && (() => {
+                const mentorDetails = getMentorDetails(selectedMentor);
+                return (
+                  <>
+                    {/* Modal Header */}
+                    <div className="p-6 flex justify-between items-center" style={{ backgroundColor: '#25476a' }}>
+                      <div>
+                        <Dialog.Title className="text-2xl font-bold text-white">
+                          {mentorDetails.name}
+                        </Dialog.Title>
+                        <Dialog.Description className="text-gray-200 mt-1">
+                          Complete Session Overview
+                        </Dialog.Description>
+                      </div>
+                      <Dialog.Close className="text-white hover:text-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-white rounded-sm">
+                        <X size={24} />
+                      </Dialog.Close>
+                    </div>
+
+                    {/* Modal Body */}
+                    <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="p-4 rounded-lg" style={{ backgroundColor: '#f0f4f8' }}>
+                          <p className="text-sm text-gray-600 mb-1">Total Sessions</p>
+                          <p className="text-2xl font-bold" style={{ color: '#25476a' }}>{mentorDetails.totalSessions}</p>
+                        </div>
+                        <div className="p-4 rounded-lg" style={{ backgroundColor: '#f0f4f8' }}>
+                          <p className="text-sm text-gray-600 mb-1">Total Earnings</p>
+                          <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {mentorDetails.totalEarnings.toLocaleString()}</p>
+                        </div>
+                        <div className="p-4 rounded-lg" style={{ backgroundColor: '#e8f5e9' }}>
+                          <p className="text-sm text-gray-600 mb-1">Paid</p>
+                          <p className="text-2xl font-bold text-green-700">{mentorDetails.paidSessions}</p>
+                        </div>
+                        <div className="p-4 rounded-lg" style={{ backgroundColor: '#fff3e0' }}>
+                          <p className="text-sm text-gray-600 mb-1">Pending</p>
+                          <p className="text-2xl font-bold text-orange-700">{mentorDetails.pendingSessions}</p>
+                        </div>
+                      </div>
+
+                      {/* Earnings by Module */}
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3" style={{ color: '#25476a' }}>Earnings by Module</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="p-4 rounded-lg border-2" style={{ borderColor: '#25476a' }}>
+                            <p className="text-sm text-gray-600 mb-1">Physical Location</p>
+                            <p className="text-xl font-bold" style={{ color: '#25476a' }}>KSh {mentorDetails.physicalEarnings.toLocaleString()}</p>
+                            <p className="text-xs text-gray-500 mt-1">{mentorDetails.physicalSessions.length} sessions</p>
+                          </div>
+                          <div className="p-4 rounded-lg border-2" style={{ borderColor: '#38aae1' }}>
+                            <p className="text-sm text-gray-600 mb-1">Home Location</p>
+                            <p className="text-xl font-bold" style={{ color: '#38aae1' }}>KSh {mentorDetails.homeEarnings.toLocaleString()}</p>
+                            <p className="text-xs text-gray-500 mt-1">{mentorDetails.homeSessions.length} sessions</p>
+                          </div>
+                          <div className="p-4 rounded-lg border-2" style={{ borderColor: '#feb139' }}>
+                            <p className="text-sm text-gray-600 mb-1">Online Sessions</p>
+                            <p className="text-xl font-bold" style={{ color: '#feb139' }}>KSh {mentorDetails.onlineEarnings.toLocaleString()}</p>
+                            <p className="text-xs text-gray-500 mt-1">{mentorDetails.onlineSessions.length} sessions</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* All Sessions List */}
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3" style={{ color: '#25476a' }}>All Sessions</h3>
+                        <div className="border border-gray-200 rounded-lg overflow-hidden">
+                          <table className="w-full">
+                            <thead style={{ backgroundColor: '#f8fafc' }}>
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Date</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Module</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Location</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Learner</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Reason</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Earnings</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {mentorDetails.allSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
+                                <tr key={session.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm" style={{ color: '#25476a' }}>
+                                    {format(new Date(session.date), 'MMM dd, yyyy')}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span
+                                      className="inline-block px-2 py-1 rounded text-xs font-medium text-white"
+                                      style={{
+                                        backgroundColor: session.module === 'physical' ? '#25476a' :
+                                                        session.module === 'home' ? '#38aae1' : '#feb139'
+                                      }}
+                                    >
+                                      {session.module === 'physical' ? 'Physical' : session.module === 'home' ? 'Home' : 'Online'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: '#25476a' }}>
+                                    {session.module === 'physical' ? session.location : '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: '#25476a' }}>{session.learner}</td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: '#25476a' }}>{session.reason}</td>
+                                  <td className="px-4 py-3 text-sm font-bold" style={{ color: '#feb139' }}>
+                                    KSh {getMentorSessionEarnings(session.module).toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {session.status === 'paid' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                        <CheckCircle size={12} />
+                                        Paid
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                                        <Clock size={12} />
+                                        Pending
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      </div>
+    </div>
+  );
+}
