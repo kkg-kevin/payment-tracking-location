@@ -17,24 +17,40 @@ const RATES = {
 // Mock data for sessions
 const mockSessions = [
   // Physical sessions
-  { id: 1, mentor: 'Brian Otieno', date: '2026-05-15', location: 'Nairobi Tech Hub', learner: 'Leonella Thutu', description: 'Story development', module: 'physical', status: 'paid' },
-  { id: 2, mentor: 'Brian Otieno', date: '2026-05-16', location: 'Nairobi Tech Hub', learner: 'Isabella Mbugua', description: 'Animation', module: 'physical', status: 'paid' },
-  { id: 3, mentor: 'Mercy Wanjiku', date: '2026-05-14', location: 'Mombasa Learning Center', learner: 'Jayson Mwangi', description: 'Simple robotics', module: 'physical', status: 'pending' },
-  { id: 4, mentor: 'Kevin Mwangi', date: '2026-05-17', location: 'Kisumu Education Hub', learner: 'Nancy Wanjiku', description: 'Game design', module: 'physical', status: 'paid' },
-  { id: 5, mentor: 'Amina Hassan', date: '2026-05-18', location: 'Nairobi Tech Hub', learner: 'Neema Odhiambo', description: 'Code foundation', module: 'physical', status: 'pending' },
+  { id: 1, mentor: 'Brian Otieno', date: '2026-05-15', location: 'The Work Place', learner: 'Leonella Thutu', description: 'Story development', module: 'physical', status: 'paid' },
+  { id: 2, mentor: 'Peter Kariuki', date: '2026-05-16', location: 'Java House', learner: 'Isabella Mbugua', description: 'Animation', module: 'physical', status: 'paid' },
+  { id: 3, mentor: 'Mercy Wanjiku', date: '2026-05-14', location: 'Artcaffee', learner: 'Jayson Mwangi', description: 'Simple robotics', module: 'physical', status: 'pending' },
+  { id: 4, mentor: 'Kevin Mwangi', date: '2026-05-17', location: 'The Work Place', learner: 'Nancy Wanjiku', description: 'Game design', module: 'physical', status: 'paid' },
+  { id: 5, mentor: 'Amina Hassan', date: '2026-05-18', location: 'Java House', learner: 'Neema Odhiambo', description: 'Code foundation', module: 'physical', status: 'pending' },
+  { id: 6, mentor: 'Faith Njeri', date: '2026-05-19', location: 'Artcaffee', learner: 'Bradley Munene', description: 'Robotics with Quarky', module: 'physical', status: 'paid' },
+  { id: 7, mentor: 'Samuel Kiptoo', date: '2026-05-20', location: 'The Work Place', learner: 'Nayla Mwangi', description: 'Introduction to coding', module: 'physical', status: 'paid' },
+  { id: 8, mentor: 'Grace Achieng', date: '2026-05-21', location: 'Java House', learner: 'Peter Mbugua', description: 'Programming in Python', module: 'physical', status: 'pending' },
+  { id: 9, mentor: 'Daniel Mutua', date: '2026-05-22', location: 'Artcaffee', learner: 'Natasha Kinuthia', description: 'Story development', module: 'physical', status: 'paid' },
+  { id: 10, mentor: 'Winnie Chebet', date: '2026-05-23', location: 'The Work Place', learner: 'Author Gatimu', description: 'Animation', module: 'physical', status: 'pending' },
 
   // Home sessions
-  { id: 6, mentor: 'Mercy Wanjiku', date: '2026-05-15', learner: 'Bradley Munene', description: 'Robotics with Quarky', module: 'home', status: 'paid' },
-  { id: 7, mentor: 'Faith Njeri', date: '2026-05-16', learner: 'Nayla Mwangi', description: 'Introduction to coding', module: 'home', status: 'paid' },
-  { id: 8, mentor: 'Samuel Kiptoo', date: '2026-05-17', learner: 'Peter Mbugua', description: 'Programming in Python', module: 'home', status: 'pending' },
-  { id: 9, mentor: 'Mercy Wanjiku', date: '2026-05-18', learner: 'Natasha Kinuthia', description: 'Story development', module: 'home', status: 'paid' },
+  { id: 11, mentor: 'Mercy Wanjiku', date: '2026-05-15', learner: 'Bradley Munene', description: 'Robotics with Quarky', module: 'home', status: 'paid' },
+  { id: 12, mentor: 'Faith Njeri', date: '2026-05-16', learner: 'Nayla Mwangi', description: 'Introduction to coding', module: 'home', status: 'paid' },
+  { id: 13, mentor: 'Samuel Kiptoo', date: '2026-05-17', learner: 'Peter Mbugua', description: 'Programming in Python', module: 'home', status: 'pending' },
+  { id: 14, mentor: 'Brian Otieno', date: '2026-05-18', learner: 'Natasha Kinuthia', description: 'Story development', module: 'home', status: 'paid' },
+  { id: 15, mentor: 'Kevin Mwangi', date: '2026-05-19', learner: 'Author Gatimu', description: 'Animation', module: 'home', status: 'paid' },
+  { id: 16, mentor: 'Amina Hassan', date: '2026-05-20', learner: 'Leonella Thutu', description: 'Simple robotics', module: 'home', status: 'pending' },
+  { id: 17, mentor: 'Grace Achieng', date: '2026-05-21', learner: 'Isabella Mbugua', description: 'Game design', module: 'home', status: 'paid' },
+  { id: 18, mentor: 'Daniel Mutua', date: '2026-05-22', learner: 'Jayson Mwangi', description: 'Code foundation', module: 'home', status: 'paid' },
+  { id: 19, mentor: 'Winnie Chebet', date: '2026-05-23', learner: 'Nancy Wanjiku', description: 'Robotics with Quarky', module: 'home', status: 'pending' },
+  { id: 20, mentor: 'Peter Kariuki', date: '2026-05-24', learner: 'Neema Odhiambo', description: 'Programming in Python', module: 'home', status: 'paid' },
 
   // Online sessions
-  { id: 10, mentor: 'Kevin Mwangi', date: '2026-05-15', learner: 'Author Gatimu', description: 'Animation', module: 'online', status: 'paid' },
-  { id: 11, mentor: 'Grace Achieng', date: '2026-05-16', learner: 'Leonella Thutu', description: 'Simple robotics', module: 'online', status: 'paid' },
-  { id: 12, mentor: 'Daniel Mutua', date: '2026-05-17', learner: 'Isabella Mbugua', description: 'Game design', module: 'online', status: 'pending' },
-  { id: 13, mentor: 'Kevin Mwangi', date: '2026-05-18', learner: 'Jayson Mwangi', description: 'Code foundation', module: 'online', status: 'paid' },
-  { id: 14, mentor: 'Grace Achieng', date: '2026-05-18', learner: 'Nancy Wanjiku', description: 'Programming in Python', module: 'online', status: 'pending' },
+  { id: 21, mentor: 'Kevin Mwangi', date: '2026-05-15', learner: 'Author Gatimu', description: 'Animation', module: 'online', status: 'paid' },
+  { id: 22, mentor: 'Grace Achieng', date: '2026-05-16', learner: 'Leonella Thutu', description: 'Simple robotics', module: 'online', status: 'paid' },
+  { id: 23, mentor: 'Daniel Mutua', date: '2026-05-17', learner: 'Isabella Mbugua', description: 'Game design', module: 'online', status: 'pending' },
+  { id: 24, mentor: 'Brian Otieno', date: '2026-05-18', learner: 'Jayson Mwangi', description: 'Code foundation', module: 'online', status: 'paid' },
+  { id: 25, mentor: 'Mercy Wanjiku', date: '2026-05-19', learner: 'Nancy Wanjiku', description: 'Programming in Python', module: 'online', status: 'pending' },
+  { id: 26, mentor: 'Amina Hassan', date: '2026-05-20', learner: 'Neema Odhiambo', description: 'Story development', module: 'online', status: 'paid' },
+  { id: 27, mentor: 'Faith Njeri', date: '2026-05-21', learner: 'Bradley Munene', description: 'Animation', module: 'online', status: 'paid' },
+  { id: 28, mentor: 'Samuel Kiptoo', date: '2026-05-22', learner: 'Nayla Mwangi', description: 'Introduction to coding', module: 'online', status: 'pending' },
+  { id: 29, mentor: 'Peter Kariuki', date: '2026-05-23', learner: 'Peter Mbugua', description: 'Robotics with Quarky', module: 'online', status: 'paid' },
+  { id: 30, mentor: 'Winnie Chebet', date: '2026-05-24', learner: 'Natasha Kinuthia', description: 'Programming in Python', module: 'online', status: 'paid' },
 ];
 
 export default function App() {
