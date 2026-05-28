@@ -951,6 +951,27 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        <Dialog.Root open={selectedEtimsClaimId !== null} onOpenChange={(open) => { if (!open) setSelectedEtimsClaimId(null); }}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+            <Dialog.Content className="fixed inset-0 flex items-center justify-center p-4">
+              <div className="w-full max-w-6xl h-full max-h-[90vh] bg-white rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between border-b p-3">
+                  <div className="flex items-center gap-3">
+                    <FileText size={18} />
+                    <div className="text-sm font-semibold" style={{ color: '#001b3f' }}>{selectedEtimsClaim?.etimsDocumentId}</div>
+                  </div>
+                  <button type="button" onClick={() => setSelectedEtimsClaimId(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100" style={{ color: '#25476a' }}>
+                    <X size={18} />
+                  </button>
+                </div>
+                <iframe src={selectedEtimsClaim?.etimsDocumentUrl || ''} title="ETIMS Document" className="w-full h-full border-0" />
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+
       </div>
     );
   }
@@ -975,6 +996,10 @@ export default function App() {
     const students = getClaimStudents(selectedAdminClaim);
     const amountPayable = getMentorCourseClaimAmount(selectedAdminClaim);
     const advancePayable = Math.round(amountPayable * 0.3);
+    // If this is an advance claim, the requested amount is the advance; otherwise it's the full amount
+    const requestedAmount = selectedAdminClaim.paymentType === 'advance' ? advancePayable : amountPayable;
+    // Estimated earnings: if request is advance, estimated full earnings ≈ requested / 0.3, else it's the full amount
+    const estimatedEarnings = selectedAdminClaim.paymentType === 'advance' ? Math.round(requestedAmount / 0.3) : amountPayable;
     const attendancePercent = Math.round((students.filter((student) => student.attendance === 'present').length / students.length) * 100);
     const assignmentPercent = Math.round((students.filter((student) => student.assignmentStatus === 'graded').length / students.length) * 100);
     const reportPercent = Math.round((students.filter((student) => student.reportStatus === 'graded').length / students.length) * 100);
@@ -1006,7 +1031,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mb-6 grid overflow-hidden rounded-lg bg-white shadow-sm lg:grid-cols-3">
+            <div className="mb-6 grid overflow-hidden rounded-lg bg-white shadow-sm lg:grid-cols-3">
             <div className="flex items-center gap-5 border-b border-gray-200 p-6 lg:border-b-0 lg:border-r">
               <div
                 className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-lg font-bold"
@@ -1027,10 +1052,24 @@ export default function App() {
               </div>
             </div>
             <div className="border-b border-gray-200 p-6 lg:border-b-0 lg:border-r">
-              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Amount Payable</p>
-              <p className="mt-2 text-2xl font-bold" style={{ color: '#25476a' }}>KSh {amountPayable.toLocaleString()}</p>
-              <p className="mt-4 text-sm" style={{ color: '#41658a' }}>Advance payable</p>
-              <p className="font-bold" style={{ color: '#d35400' }}>KSh {advancePayable.toLocaleString()}</p>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+                <div className="lg:col-span-2">
+                  <div className="rounded-lg border border-green-100 bg-green-50 p-6 h-full">
+                    <p className="text-xs font-bold uppercase tracking-wide text-green-700">Amount Requested</p>
+                    <p className="mt-4 text-3xl font-bold" style={{ color: '#0b5e3a' }}>KSh {requestedAmount.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-lg border border-gray-200 bg-white p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Estimated Earnings</p>
+                    <p className="mt-2 text-lg font-bold text-gray-800">KSh {estimatedEarnings.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg border border-orange-100 bg-orange-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-orange-700">Estimated Advance</p>
+                    <p className="mt-2 text-lg font-bold text-orange-700">KSh {advancePayable.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="p-6">
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Payment Actions</p>
@@ -1153,17 +1192,14 @@ export default function App() {
             </div>
 
             <div className="rounded-lg bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold" style={{ color: '#001b3f' }}>Claim History</h2>
-                  <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.courseName}</p>
+              <div className="flex items-start gap-4">
+                  <div>
+                    <h2 className="text-lg font-bold" style={{ color: '#001b3f' }}>Claim History</h2>
+                    <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.courseName}</p>
+                  </div>
                 </div>
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold" style={{ color: '#25476a' }}>
-                  {selectedAdminClaim.courseActivity.length}
-                </span>
-              </div>
-              <div className="mt-5 space-y-4">
-                <div className="rounded-lg border border-gray-200 p-4">
+                <div className="mt-5">
+                  <div className="rounded-lg border border-gray-200 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-bold" style={{ color: '#001b3f' }}>
@@ -1175,7 +1211,7 @@ export default function App() {
                   </div>
                   <div className="mt-4 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 text-sm">
                     <span style={{ color: '#41658a' }}>Amount</span>
-                    <span className="font-bold" style={{ color: '#001b3f' }}>KSh {amountPayable.toLocaleString()}</span>
+                    <span className="font-bold" style={{ color: '#001b3f' }}>KSh {requestedAmount.toLocaleString()}</span>
                   </div>
                   {selectedAdminClaim.notes && (
                     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
@@ -1183,13 +1219,28 @@ export default function App() {
                       <p className="mt-1 text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.notes}</p>
                     </div>
                   )}
+                  {/* ETIMS attachment */}
+                  {selectedAdminClaim.etimsDocumentUrl && (
+                    <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>ETIMS Document</p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="text-sm text-gray-700">{selectedAdminClaim.etimsDocumentId}</div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEtimsClaimId(selectedAdminClaim.id)}
+                            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+                            style={{ color: '#25476a' }}
+                          >
+                            <FileText size={16} />
+                            View ETIMS
+                          </button>
+                          <a href={selectedAdminClaim.etimsDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">Open in new tab</a>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {selectedAdminClaim.courseActivity.map((activity) => (
-                  <div key={activity} className="flex items-start gap-3 rounded-lg bg-gray-50 p-3 text-sm" style={{ color: '#25476a' }}>
-                    <CheckCircle size={16} className="mt-0.5 shrink-0 text-green-600" />
-                    <span>{activity}</span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
@@ -1202,224 +1253,21 @@ export default function App() {
     return (
       <div className="min-h-screen w-full min-w-0 bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
         <div className="w-full min-w-0 max-w-screen-2xl mx-auto">
-          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Supervisor Payment Approval</h1>
-              <p className="text-gray-600">Review mentor claims, approve eligible claims, or reject claims with a reason.</p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                onClick={() => setActivePage('claims')}
-                className="inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 font-semibold text-white shadow-sm transition-colors hover:brightness-95"
-                style={{ backgroundColor: '#25476a' }}
-              >
-                <ClipboardList size={18} />
-                Approved Claims
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivePage('dashboard')}
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 font-semibold shadow-sm transition-colors hover:bg-gray-50"
-                style={{ color: '#25476a' }}
-              >
-                <X size={18} />
-                Back to Dashboard
-              </button>
-            </div>
+          <div className="mb-6 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActivePage('dashboard')}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100"
+              style={{ color: '#25476a' }}
+              aria-label="Back to Dashboard"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <h1 className="text-2xl font-bold" style={{ color: '#25476a' }}>Supervisor Review (Removed)</h1>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Pending Review</p>
-              <p className="text-2xl font-bold text-orange-700">{supervisorSummary.pending}</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Ready for Admin</p>
-              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>{supervisorSummary.movedToFinance}</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Paid by Admin</p>
-              <p className="text-2xl font-bold" style={{ color: '#25476a' }}>{claimRows.filter((claim) => claim.status === 'paid').length}</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Rejected</p>
-              <p className="text-2xl font-bold text-red-700">{supervisorSummary.rejected}</p>
-            </div>
+          <div className="rounded-lg bg-white p-6 text-sm text-gray-600">
+            The Supervisor Review module has been removed.
           </div>
-
-          <div className="space-y-4">
-            {claimRows.map((claim) => {
-              const isValidForApproval = canSupervisorApprove(claim);
-              const rejectReason = rejectionReasons[claim.id] ?? '';
-
-              return (
-                <div key={claim.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 sm:p-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-xl font-bold" style={{ color: '#25476a' }}>Claim #{claim.id}</h2>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                          claim.supervisorStatus === 'rejected' ? 'bg-red-100 text-red-700' :
-                          claim.supervisorStatus === 'moved_to_finance' ? 'bg-green-100 text-green-700' :
-                          claim.supervisorStatus === 'approved' ? 'bg-blue-100 text-blue-700' :
-                          'bg-orange-100 text-orange-700'
-                        }`}>
-                          {claim.supervisorStatus === 'rejected' ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
-                          {getSupervisorStatusLabel(claim.supervisorStatus)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-gray-600">
-                        {claim.mentor} submitted {claim.paymentType === 'full' ? 'a full payment' : 'an advance payment'} claim for {claim.learner}.
-                      </p>
-                    </div>
-                    <div className="text-left xl:text-right">
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Claim Amount</p>
-                      <p className="text-2xl font-bold" style={{ color: '#feb139' }}>KSh {getMentorCourseClaimAmount(claim).toLocaleString()}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:p-6 lg:grid-cols-3">
-                    <div className="lg:col-span-2">
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Course Details</p>
-                          <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>{claim.courseName}</p>
-                          <p className="text-sm text-gray-600">{claim.completedSessions}/{claim.totalSessions} sessions claimed</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Teaching Method</p>
-                          <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>
-                            {claim.module === 'physical' ? 'Physical Location' : claim.module === 'home' ? 'Home Location' : 'Online Sessions'}
-                          </p>
-                          <p className="text-sm text-gray-600">{claim.claimMonth}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Course Progress</p>
-                          <div className="mt-2 h-3 rounded-full bg-gray-100">
-                            <div className="h-3 rounded-full" style={{ width: `${Math.min(claim.progressPercent, 100)}%`, backgroundColor: isValidForApproval ? '#38aae1' : '#f97316' }} />
-                          </div>
-                          <p className="mt-1 text-sm font-semibold" style={{ color: '#25476a' }}>{claim.progressPercent}% complete</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Validation</p>
-                          <p className={`mt-1 text-sm font-semibold ${isValidForApproval ? 'text-green-700' : 'text-orange-700'}`}>
-                            {claim.supervisorStatus === 'moved_to_finance'
-                              ? 'Approved and sent to admin'
-                              : isValidForApproval
-                              ? 'Eligible for supervisor approval'
-                              : claim.paymentType === 'full'
-                                ? 'Full payment requires 100% progress'
-                                : 'Advance payment requires at least 30% progress'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 rounded-lg bg-gray-50 p-4">
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Course Activity</p>
-                        <ul className="grid gap-2 text-sm text-gray-700">
-                          {claim.courseActivity.map((activity) => (
-                            <li key={activity} className="flex items-start gap-2">
-                              <CheckCircle size={15} className="mt-0.5 shrink-0 text-green-600" />
-                              <span>{activity}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg border border-gray-200 p-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">eTIMS Document</p>
-                      <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>{claim.etimsDocumentId}</p>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEtimsClaimId(claim.id)}
-                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-gray-50"
-                        style={{ color: '#25476a' }}
-                      >
-                        <Eye size={16} />
-                        Preview eTIMS
-                      </button>
-
-                      {claim.supervisorStatus === 'pending_review' && (
-                        <div className="mt-4 space-y-3">
-                          <button
-                            type="button"
-                            disabled={!isValidForApproval}
-                            onClick={() => approveClaim(claim.id)}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
-                            style={isValidForApproval ? { backgroundColor: '#38aae1' } : undefined}
-                          >
-                            <CheckCircle size={16} />
-                            Approve
-                          </button>
-                          <textarea
-                            value={rejectReason}
-                            onChange={(event) => setRejectionReasons((current) => ({ ...current, [claim.id]: event.target.value }))}
-                            placeholder="Reason required to reject"
-                            className="min-h-20 w-full rounded-md border border-gray-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2"
-                            style={{ color: '#25476a' }}
-                          />
-                          <button
-                            type="button"
-                            disabled={rejectReason.trim() === ''}
-                            onClick={() => rejectClaim(claim.id)}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
-                            style={rejectReason.trim() !== '' ? { backgroundColor: '#dc2626' } : undefined}
-                          >
-                            <AlertCircle size={16} />
-                            Reject Claim
-                          </button>
-                        </div>
-                      )}
-
-                      {claim.supervisorStatus === 'rejected' && claim.rejectionReason && (
-                        <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                          <span className="font-semibold">Rejected:</span> {claim.rejectionReason}
-                        </div>
-                      )}
-
-                      {claim.supervisorStatus === 'moved_to_finance' && (
-                        <div className="mt-4 rounded-md bg-green-50 p-3 text-sm font-semibold text-green-700">
-                          Approved and visible to admin for payout
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <Dialog.Root open={selectedEtimsClaim !== undefined && selectedEtimsClaim !== null} onOpenChange={(open) => !open && setSelectedEtimsClaimId(null)}>
-            <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
-              <Dialog.Content className="fixed top-1/2 left-1/2 z-50 max-h-[90vh] w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg bg-white shadow-xl">
-                {selectedEtimsClaim && (
-                  <>
-                    <div className="flex items-start justify-between gap-4 p-5" style={{ backgroundColor: '#25476a' }}>
-                      <div>
-                        <Dialog.Title className="text-xl font-bold text-white">{selectedEtimsClaim.etimsDocumentId}</Dialog.Title>
-                        <Dialog.Description className="text-sm text-gray-200">eTIMS document preview for claim #{selectedEtimsClaim.id}</Dialog.Description>
-                      </div>
-                      <Dialog.Close className="text-white hover:text-gray-300">
-                        <X size={22} />
-                      </Dialog.Close>
-                    </div>
-                    <div className="p-5">
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
-                        <FileText size={32} style={{ color: '#38aae1' }} />
-                        <p className="mt-3 font-semibold" style={{ color: '#25476a' }}>{selectedEtimsClaim.courseName}</p>
-                        <p className="text-sm text-gray-600">{selectedEtimsClaim.mentor} - {selectedEtimsClaim.learner}</p>
-                        <p className="mt-3 text-sm text-gray-600">Document URL: {selectedEtimsClaim.etimsDocumentUrl}</p>
-                        <p className="mt-3 text-2xl font-bold" style={{ color: '#feb139' }}>KSh {getMentorCourseClaimAmount(selectedEtimsClaim).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
         </div>
       </div>
     );
@@ -1429,23 +1277,23 @@ export default function App() {
     return (
       <div className="min-h-screen w-full min-w-0 bg-gray-50 px-3 py-3 sm:px-4 lg:px-6">
         <div className="w-full min-w-0 max-w-screen-2xl mx-auto">
-          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Approved Claims</h1>
-              <p className="text-gray-600">Pay claims approved by supervisors and sent to admin.</p>
-            </div>
+          <div className="mb-6 flex items-center gap-2">
             <button
               type="button"
               onClick={() => {
                 setSelectedClaimId(null);
                 setActivePage('dashboard');
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 font-semibold shadow-sm transition-colors hover:bg-gray-50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100"
               style={{ color: '#25476a' }}
+              aria-label="Back to Dashboard"
             >
-              <X size={18} />
-              Back to Dashboard
+              <ChevronLeft size={18} />
             </button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-0" style={{ color: '#25476a' }}>Approved Claims</h1>
+              <p className="text-gray-600">Pay claims approved by supervisors and sent to admin.</p>
+            </div>
           </div>
 
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -1577,27 +1425,27 @@ export default function App() {
     return (
       <div className="min-h-screen w-full min-w-0 bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
         <div className="w-full min-w-0 max-w-5xl mx-auto">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>
-                {selectedClaimId ? 'Pay Mentor Claim' : 'Make Payment'}
-              </h1>
-              <p className="text-gray-600">
-                {selectedClaimId ? 'Send an approved mentor payout and mark the claim as paid.' : 'Complete a course payment and send it back to the dashboard records.'}
-              </p>
-            </div>
+          <div className="mb-6 flex items-center gap-2">
             <button
               type="button"
               onClick={() => {
                 setSelectedClaimId(null);
                 setActivePage(selectedClaimId ? 'claims' : 'dashboard');
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 font-semibold shadow-sm transition-colors hover:bg-gray-50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100"
               style={{ color: '#25476a' }}
+              aria-label="Back to Dashboard"
             >
-              <X size={18} />
-              Back to Dashboard
+              <ChevronLeft size={18} />
             </button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-0" style={{ color: '#25476a' }}>
+                {selectedClaimId ? 'Pay Mentor Claim' : 'Make Payment'}
+              </h1>
+              <p className="text-gray-600">
+                {selectedClaimId ? 'Send an approved mentor payout and mark the claim as paid.' : 'Complete a course payment and send it back to the dashboard records.'}
+              </p>
+            </div>
           </div>
 
           <form onSubmit={handlePaymentSubmit} className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -1929,15 +1777,7 @@ export default function App() {
                 Payment added
               </span>
             )}
-            <button
-              type="button"
-              onClick={() => setActivePage('supervisor')}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 font-semibold shadow-sm transition-colors hover:bg-gray-50"
-              style={{ color: '#25476a' }}
-            >
-              <FileText size={18} />
-              Supervisor Review
-            </button>
+            {/* Supervisor Review button removed per request */}
             <button
               type="button"
               onClick={() => setActivePage('claims')}
