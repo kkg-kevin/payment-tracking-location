@@ -26,7 +26,7 @@ import {
 import { format } from 'date-fns';
 import * as Dialog from '@radix-ui/react-dialog';
 
-type ModuleType = 'physical' | 'home' | 'online';
+type ModuleType = 'physical' | 'home' | 'online' | 'center' | 'googlemeet';
 type PaymentStatus = 'paid' | 'pending';
 type PaymentMethod = 'MPESA' | 'Bank Transfer';
 type ClaimStatus = 'submitted' | 'approved' | 'paid';
@@ -477,6 +477,17 @@ export default function App() {
     getMentorSessionEarnings(claim.module) * claim.completedSessions
   );
 
+  // Helpers to detect center and Google Meet sessions
+  const isCenterSession = (session: Session) => (
+    Boolean(session.location) && locationOptions.includes(session.location as string)
+  );
+
+  const isGoogleMeetSession = (session: Session) => {
+    const loc = (session.location || '').toString().toLowerCase();
+    const desc = (session.description || '').toString().toLowerCase();
+    return loc.includes('google') || desc.includes('google meet') || desc.includes('google');
+  };
+
   const claimRows = useMemo(() => (
     claims
       .map((claim) => {
@@ -488,7 +499,15 @@ export default function App() {
 
   const filteredClaimRows = useMemo(() => (
     claimRows.filter((claim) => {
-      const matchesModule = claim.module === selectedModule;
+      let matchesModule = false;
+      if (selectedModule === 'center') {
+        matchesModule = (claim.courseSessions || []).some((s) => isCenterSession(s));
+      } else if (selectedModule === 'googlemeet') {
+        matchesModule = (claim.courseSessions || []).some((s) => isGoogleMeetSession(s));
+      } else {
+        matchesModule = claim.module === selectedModule;
+      }
+
       const matchesSearch = searchQuery === '' ||
         claim.mentor.toLowerCase().includes(searchQuery.toLowerCase()) ||
         claim.learner.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -653,24 +672,66 @@ export default function App() {
   // Filter sessions by selected module and search query
   const filteredSessions = useMemo(() => {
     return sessions.filter(session => {
-      const matchesModule = session.module === selectedModule;
+      let matchesModule = false;
+      if (selectedModule === 'center') {
+        matchesModule = isCenterSession(session);
+      } else if (selectedModule === 'googlemeet') {
+        matchesModule = isGoogleMeetSession(session);
+      } else {
+        matchesModule = session.module === selectedModule;
+      }
+
       const matchesSearch = searchQuery === '' ||
         session.mentor.toLowerCase().includes(searchQuery.toLowerCase()) ||
         session.learner.toLowerCase().includes(searchQuery.toLowerCase());
+
       return matchesModule && matchesSearch;
     });
   }, [sessions, selectedModule, searchQuery]);
 
   // Calculate earnings for each module
   const calculateModuleEarnings = (module: ModuleType) => {
-    const moduleClaims = financeClaimRows.filter(claim => claim.module === module);
-    const sessionCount = moduleClaims.reduce((sum, claim) => sum + claim.completedSessions, 0);
-    const mentorEarnings = moduleClaims.reduce((sum, claim) => sum + getMentorCourseClaimAmount(claim), 0);
+    let sessionCount = 0;
+    let mentorEarnings = 0;
+    let digifunziEarnings = 0;
+    let locationEarnings = 0;
 
-    const digifunziEarnings = sessionCount * RATES.digifunzi;
-    const locationEarnings = module === 'physical' ? sessionCount * RATES.location : 0;
+    financeClaimRows.forEach((claim) => {
+      const sessions = claim.courseSessions || [];
+
+      // If there are no explicit sessions attached, fallback to claim-level estimate
+      if (!sessions.length) {
+        const matches = (module === 'center' && false) // can't detect without sessions
+          || (module === 'googlemeet' && false)
+          || (module !== 'center' && module !== 'googlemeet' && claim.module === module);
+        if (matches) {
+          const count = claim.completedSessions;
+          const mentorRate = (claim.module === 'online') ? RATES.mentor.online : RATES.mentor.physical;
+          sessionCount += count;
+          mentorEarnings += mentorRate * count;
+          digifunziEarnings += RATES.digifunzi * count;
+          if (claim.module === 'physical') locationEarnings += RATES.location * count;
+        }
+        return;
+      }
+
+      sessions.forEach((session) => {
+        let match = false;
+        if (module === 'center') match = isCenterSession(session);
+        else if (module === 'googlemeet') match = isGoogleMeetSession(session);
+        else match = session.module === module;
+
+        if (!match) return;
+
+        sessionCount += 1;
+        const mentorRate = (session.module === 'online' || isGoogleMeetSession(session) || module === 'googlemeet') ? RATES.mentor.online : RATES.mentor.physical;
+        mentorEarnings += mentorRate;
+        digifunziEarnings += RATES.digifunzi;
+        if (session.module === 'physical') locationEarnings += RATES.location;
+      });
+    });
+
     const total = mentorEarnings + digifunziEarnings + locationEarnings;
-
     return { mentorEarnings, digifunziEarnings, locationEarnings, total, sessionCount };
   };
 
@@ -687,7 +748,7 @@ export default function App() {
       stats.sessions.push(session);
       stats.sessionCount += 1;
 
-      if (selectedModule === 'physical' || selectedModule === 'home') {
+      if (selectedModule === 'physical' || selectedModule === 'home' || selectedModule === 'center') {
         stats.totalEarnings += RATES.mentor.physical;
       } else {
         stats.totalEarnings += RATES.mentor.online;
@@ -700,7 +761,47 @@ export default function App() {
   const physicalEarnings = calculateModuleEarnings('physical');
   const homeEarnings = calculateModuleEarnings('home');
   const onlineEarnings = calculateModuleEarnings('online');
-  const totalEarnings = physicalEarnings.total + homeEarnings.total + onlineEarnings.total;
+  const computeOverallBreakdown = () => {
+    const zero = { mentorEarnings: 0, digifunziEarnings: 0, locationEarnings: 0, total: 0, sessionCount: 0 };
+    const physical = { ...zero };
+    const home = { ...zero };
+    const online = { ...zero };
+    const center = { ...zero };
+    const googlemeet = { ...zero };
+
+    financeClaimRows.forEach((claim) => {
+      const sessionsForClaim = claim.courseSessions && claim.courseSessions.length > 0
+        ? claim.courseSessions
+        : new Array(claim.completedSessions).fill(null).map(() => ({ module: claim.module } as Session));
+
+      sessionsForClaim.forEach((session) => {
+        const isCenter = session && isCenterSession(session);
+        const isGoogle = session && isGoogleMeetSession(session);
+        const module = session?.module ?? claim.module;
+
+        // decide bucket
+        let bucket: typeof zero | null = null;
+        if (isCenter) bucket = center;
+        else if (module === 'home') bucket = home;
+        else if (isGoogle) bucket = googlemeet;
+        else if (module === 'online') bucket = online;
+        else if (module === 'physical') bucket = physical;
+        else bucket = physical;
+
+        const mentorRate = (module === 'online' || isGoogle) ? RATES.mentor.online : RATES.mentor.physical;
+        bucket.sessionCount += 1;
+        bucket.mentorEarnings += mentorRate;
+        bucket.digifunziEarnings += RATES.digifunzi;
+        if (module === 'physical') bucket.locationEarnings += RATES.location;
+        bucket.total = bucket.mentorEarnings + bucket.digifunziEarnings + bucket.locationEarnings;
+      });
+    });
+
+    return { physical, home, online, center, googlemeet };
+  };
+
+  const { physical: overallPhysical, home: overallHome, online: overallOnline, center: overallCenter, googlemeet: overallGoogleMeet } = computeOverallBreakdown();
+  const totalEarnings = overallPhysical.total + overallHome.total + overallOnline.total + overallCenter.total + overallGoogleMeet.total;
   const selectedClaim = selectedClaimId ? claimRows.find((claim) => claim.id === selectedClaimId) : null;
   const selectedAdminClaim = selectedAdminClaimId ? claimRows.find((claim) => claim.id === selectedAdminClaimId) : null;
 
@@ -737,7 +838,7 @@ export default function App() {
   };
 
   const getMethodLabel = (module: ModuleType) => (
-    module === 'physical' ? 'Physical' : module === 'home' ? 'Home' : 'Online'
+    module === 'physical' ? 'Physical' : module === 'home' ? 'Home' : module === 'center' ? 'Center' : module === 'googlemeet' ? 'Google Meet' : 'Online'
   );
 
   // Get all monthly claims for the selected mentor across all modules
@@ -746,15 +847,21 @@ export default function App() {
     const physicalClaims = allMentorClaims.filter(claim => claim.module === 'physical');
     const homeClaims = allMentorClaims.filter(claim => claim.module === 'home');
     const onlineClaims = allMentorClaims.filter(claim => claim.module === 'online');
+    const centerClaims = allMentorClaims.filter(claim => (claim.courseSessions || []).some(s => isCenterSession(s)));
+    const googleClaims = allMentorClaims.filter(claim => (claim.courseSessions || []).some(s => isGoogleMeetSession(s)));
 
     const physicalSessions = physicalClaims.reduce((sum, claim) => sum + claim.completedSessions, 0);
     const homeSessions = homeClaims.reduce((sum, claim) => sum + claim.completedSessions, 0);
     const onlineSessions = onlineClaims.reduce((sum, claim) => sum + claim.completedSessions, 0);
+    const centerSessions = centerClaims.reduce((sum, claim) => sum + claim.completedSessions, 0);
+    const googleSessions = googleClaims.reduce((sum, claim) => sum + claim.completedSessions, 0);
 
     const physicalEarnings = physicalClaims.reduce((sum, claim) => sum + getMentorCourseClaimAmount(claim), 0);
     const homeEarnings = homeClaims.reduce((sum, claim) => sum + getMentorCourseClaimAmount(claim), 0);
     const onlineEarnings = onlineClaims.reduce((sum, claim) => sum + getMentorCourseClaimAmount(claim), 0);
-    const totalEarnings = physicalEarnings + homeEarnings + onlineEarnings;
+    const centerEarnings = centerClaims.reduce((sum, claim) => sum + getMentorCourseClaimAmount(claim), 0);
+    const googleEarnings = googleClaims.reduce((sum, claim) => sum + getMentorCourseClaimAmount(claim), 0);
+    const totalEarnings = physicalEarnings + homeEarnings + onlineEarnings + centerEarnings + googleEarnings;
 
     const paidSessions = allMentorClaims
       .filter(claim => claim.status === 'paid')
@@ -769,9 +876,13 @@ export default function App() {
       physicalSessions,
       homeSessions,
       onlineSessions,
+      centerSessions,
+      googleSessions,
       physicalEarnings,
       homeEarnings,
       onlineEarnings,
+      centerEarnings,
+      googleEarnings,
       totalEarnings,
       totalSessions: allMentorClaims.reduce((sum, claim) => sum + claim.completedSessions, 0),
       totalClaims: allMentorClaims.length,
@@ -787,8 +898,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActivePage('claims')}
-            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 font-semibold shadow-sm"
-            style={{ color: '#25476a' }}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 font-semibold shadow-sm text-slate-800"
           >
             <ChevronLeft size={18} />
             Back to Approved Claims
@@ -812,8 +922,7 @@ export default function App() {
             <button
               type="button"
               onClick={backToAdminClaim}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white"
-              style={{ color: '#25476a' }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white text-slate-800"
               aria-label="Back to course claim"
             >
               <ChevronLeft size={20} />
@@ -821,23 +930,21 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActivePage('claims')}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white"
-              style={{ color: '#25476a' }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white text-slate-800"
               aria-label="Back to mentor claims"
             >
               <ChevronLeft size={20} />
             </button>
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: '#001b3f' }}>
+              <h1 className="text-2xl font-bold text-slate-900">
                 {isAssignmentPage ? 'Assignments' : 'Reports'} - Session {selectedEvidenceSession}
               </h1>
-              <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.submittedAt}</p>
+              <p className="text-sm text-slate-500">{selectedAdminClaim.submittedAt}</p>
             </div>
             <button
               type="button"
               onClick={() => setSelectedEvidenceSession((current) => Math.min(current + 1, selectedAdminClaim.completedSessions))}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white"
-              style={{ color: '#25476a' }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white text-slate-800"
               aria-label="Next session"
             >
               <ChevronRight size={20} />
@@ -847,11 +954,11 @@ export default function App() {
           <div className="mb-5 rounded-lg bg-white px-5 py-5 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>{selectedAdminClaim.courseName}</p>
-                <h2 className="text-xl font-bold" style={{ color: '#001b3f' }}>
+                <p className="text-xs font-bold uppercase tracking-wide text-sky-700">{selectedAdminClaim.courseName}</p>
+                <h2 className="text-xl font-bold text-slate-900">
                   Session {selectedEvidenceSession}{isAssignmentPage ? '' : ' Report'}
                 </h2>
-                <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.submittedAt} - {students.length} students</p>
+                <p className="text-sm text-slate-500">{selectedAdminClaim.submittedAt} - {students.length} students</p>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {isAssignmentPage ? (
@@ -865,8 +972,8 @@ export default function App() {
                       <p className="text-xs font-bold uppercase tracking-wide text-orange-700">Submitted</p>
                     </div>
                     <div className="rounded-lg bg-gray-100 px-6 py-3 text-center">
-                      <p className="text-lg font-bold" style={{ color: '#25476a' }}>{issuedAssignments}</p>
-                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Issued</p>
+                      <p className="text-lg font-bold text-slate-800">{issuedAssignments}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-800">Issued</p>
                     </div>
                   </>
                 ) : (
@@ -888,16 +995,16 @@ export default function App() {
           <div className="overflow-hidden rounded-lg bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead style={{ backgroundColor: '#eaf1f8' }}>
+                <thead className="bg-sky-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Student Name</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">Student Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">
                       {isAssignmentPage ? 'Assignment' : 'Report'}
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">
                       {isAssignmentPage ? 'Progress' : 'Status'}
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">
                       {isAssignmentPage ? 'Assignment File' : 'Download'}
                     </th>
                   </tr>
@@ -907,19 +1014,19 @@ export default function App() {
                     <tr key={student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: '#214a73' }}>
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white bg-[#214a73]">
                             {student.initials}
                           </span>
-                          <span className="font-semibold" style={{ color: '#001b3f' }}>{student.name}</span>
+                          <span className="font-semibold text-slate-900">{student.name}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-semibold" style={{ color: '#001b3f' }}>Session {selectedEvidenceSession}{isAssignmentPage ? '' : ' Report'}</p>
-                        <p className="text-xs" style={{ color: '#3f6790' }}>Session {selectedEvidenceSession}</p>
+                        <p className="font-semibold text-slate-900">Session {selectedEvidenceSession}{isAssignmentPage ? '' : ' Report'}</p>
+                        <p className="text-xs text-slate-500">Session {selectedEvidenceSession}</p>
                       </td>
                       <td className="px-6 py-4">
                         {isAssignmentPage ? (
-                          <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: '#001b3f' }}>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-900">
                             {(['issued', 'submitted', 'graded'] as AssignmentStatus[]).map((status, index) => (
                               <span key={status} className="inline-flex items-center gap-2">
                                 <span className={`h-2.5 w-2.5 rounded-full ${student.assignmentStatus === status ? 'bg-[#214a73]' : 'bg-gray-300'}`} />
@@ -937,8 +1044,7 @@ export default function App() {
                       <td className="px-6 py-4">
                         <button
                           type="button"
-                          className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-gray-50"
-                          style={{ color: '#001b3f' }}
+                          className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-gray-50 text-slate-900"
                         >
                           <Download size={16} />
                           Download
@@ -960,9 +1066,9 @@ export default function App() {
                 <div className="flex items-center justify-between border-b p-3">
                   <div className="flex items-center gap-3">
                     <FileText size={18} />
-                    <div className="text-sm font-semibold" style={{ color: '#001b3f' }}>{selectedEtimsClaim?.etimsDocumentId}</div>
+                    <div className="text-sm font-semibold text-slate-900">{selectedEtimsClaim?.etimsDocumentId}</div>
                   </div>
-                  <button type="button" onClick={() => setSelectedEtimsClaimId(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100" style={{ color: '#25476a' }}>
+                  <button type="button" onClick={() => setSelectedEtimsClaimId(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100 text-slate-800">
                     <X size={18} />
                   </button>
                 </div>
@@ -983,8 +1089,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActivePage('claims')}
-            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 font-semibold shadow-sm"
-            style={{ color: '#25476a' }}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 font-semibold shadow-sm text-slate-800"
           >
             <ChevronLeft size={18} />
             Back to Approved Claims
@@ -1011,18 +1116,17 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActivePage('claims')}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white"
-              style={{ color: '#25476a' }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white text-slate-800"
               aria-label="Back to mentor claims"
             >
               <ChevronLeft size={20} />
             </button>
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white" style={{ backgroundColor: '#25476a' }}>
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white bg-slate-800">
               <BookOpen size={20} />
             </span>
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: '#001b3f' }}>{selectedAdminClaim.courseName}</h1>
-              <div className="flex flex-wrap items-center gap-2 text-sm" style={{ color: '#3f6790' }}>
+              <h1 className="text-2xl font-bold text-slate-900">{selectedAdminClaim.courseName}</h1>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
                 <span className="rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold text-white">
                   {selectedAdminClaim.module === 'physical' ? 'Physical' : selectedAdminClaim.module === 'home' ? 'Home' : 'Online'}
                 </span>
@@ -1031,21 +1135,20 @@ export default function App() {
             </div>
           </div>
 
-            <div className="mb-6 grid overflow-hidden rounded-lg bg-white shadow-sm lg:grid-cols-3">
+          <div className="mb-6 grid overflow-hidden rounded-lg bg-white shadow-sm lg:grid-cols-3">
             <div className="flex items-center gap-5 border-b border-gray-200 p-6 lg:border-b-0 lg:border-r">
               <div
-                className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-lg font-bold"
+                className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-lg font-bold text-slate-900"
                 style={{
-                  color: '#001b3f',
                   background: `conic-gradient(#16a34a ${selectedAdminClaim.progressPercent * 3.6}deg, #e5edf5 0deg)`,
                 }}
               >
                 <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white">{selectedAdminClaim.progressPercent}%</span>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Course Progress</p>
-                <p className="text-lg font-bold" style={{ color: '#001b3f' }}>{selectedAdminClaim.completedSessions}/{selectedAdminClaim.totalSessions} sessions</p>
-                <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold" style={{ color: '#25476a' }}>
+                <p className="text-xs font-bold uppercase tracking-wide text-sky-700">Course Progress</p>
+                <p className="text-lg font-bold text-slate-900">{selectedAdminClaim.completedSessions}/{selectedAdminClaim.totalSessions} sessions</p>
+                <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-slate-800">
                   <Users size={14} />
                   {students.length} students
                 </span>
@@ -1056,7 +1159,7 @@ export default function App() {
                 <div className="lg:col-span-2">
                   <div className="rounded-lg border border-green-100 bg-green-50 p-6 h-full">
                     <p className="text-xs font-bold uppercase tracking-wide text-green-700">Amount Requested</p>
-                    <p className="mt-4 text-3xl font-bold" style={{ color: '#0b5e3a' }}>KSh {requestedAmount.toLocaleString()}</p>
+                    <p className="mt-4 text-3xl font-bold text-emerald-800">KSh {requestedAmount.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
@@ -1072,16 +1175,15 @@ export default function App() {
               </div>
             </div>
             <div className="p-6">
-              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Payment Actions</p>
-              <p className="mt-2 text-sm font-semibold" style={{ color: '#001b3f' }}>
+              <p className="text-xs font-bold uppercase tracking-wide text-sky-700">Payment Actions</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
                 {getAdminStatusLabel(selectedAdminClaim)}
               </p>
               {selectedAdminClaim.status === 'approved' ? (
                 <button
                   type="button"
                   onClick={() => startClaimPayment(selectedAdminClaim.id)}
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold text-white shadow-sm"
-                  style={{ backgroundColor: '#25476a' }}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold text-white shadow-sm bg-slate-800 hover:bg-slate-900"
                 >
                   <Receipt size={18} />
                   Pay Mentor
@@ -1098,43 +1200,39 @@ export default function App() {
             <div className="overflow-hidden rounded-lg bg-white shadow-sm">
               <div className="flex flex-col gap-4 border-b border-gray-200 p-5 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-xl font-bold" style={{ color: '#001b3f' }}>Session {selectedEvidenceSession}</h2>
-                  <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.submittedAt}</p>
+                  <h2 className="text-xl font-bold text-slate-900">Session {selectedEvidenceSession}</h2>
+                  <p className="text-sm text-slate-500">{selectedAdminClaim.submittedAt}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold" style={{ color: '#001b3f' }}>Attendance {attendancePercent}%</span>
+                  <span className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-slate-900">Attendance {attendancePercent}%</span>
                   <button
                     type="button"
                     onClick={() => setActivePage('assignment-detail')}
-                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold hover:bg-gray-50"
-                    style={{ color: '#001b3f' }}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold hover:bg-gray-50 text-slate-900"
                   >
                     Assignment {assignmentPercent}%
                   </button>
                   <button
                     type="button"
                     onClick={() => setActivePage('report-detail')}
-                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold hover:bg-gray-50"
-                    style={{ color: '#001b3f' }}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold hover:bg-gray-50 text-slate-900"
                   >
                     Report {reportPercent}%
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedEvidenceSession((current) => Math.max(1, current - 1))}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-50"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-50 text-slate-800"
                     aria-label="Previous session"
-                    style={{ color: '#25476a' }}
                   >
                     <ChevronLeft size={18} />
                   </button>
-                  <span className="text-sm" style={{ color: '#001b3f' }}>{selectedEvidenceSession} / {selectedAdminClaim.completedSessions}</span>
+                  <span className="text-sm text-slate-900">{selectedEvidenceSession} / {selectedAdminClaim.completedSessions}</span>
                   <button
                     type="button"
                     onClick={() => setSelectedEvidenceSession((current) => Math.min(current + 1, selectedAdminClaim.completedSessions))}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-50"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-50 text-slate-800"
                     aria-label="Next session"
-                    style={{ color: '#25476a' }}
                   >
                     <ChevronRight size={18} />
                   </button>
@@ -1142,12 +1240,12 @@ export default function App() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead style={{ backgroundColor: '#eaf1f8' }}>
+                  <thead className="bg-sky-50">
                     <tr>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Student</th>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Attendance</th>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Assignment</th>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Report</th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">Student</th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">Attendance</th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">Assignment</th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-sky-700">Report</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1155,10 +1253,10 @@ export default function App() {
                       <tr key={student.id} className="hover:bg-gray-50">
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: '#214a73' }}>
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white bg-[#214a73]">
                               {student.initials}
                             </span>
-                            <span className="font-semibold" style={{ color: '#001b3f' }}>{student.name}</span>
+                            <span className="font-semibold text-slate-900">{student.name}</span>
                           </div>
                         </td>
                         <td className="px-5 py-4">
@@ -1192,45 +1290,44 @@ export default function App() {
             </div>
 
             <div className="rounded-lg bg-white p-5 shadow-sm">
-              <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-4">
                   <div>
-                    <h2 className="text-lg font-bold" style={{ color: '#001b3f' }}>Claim History</h2>
-                    <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.courseName}</p>
+                    <h2 className="text-lg font-bold text-slate-900">Claim History</h2>
+                    <p className="text-sm text-slate-500">{selectedAdminClaim.courseName}</p>
                   </div>
                 </div>
                 <div className="mt-5">
                   <div className="rounded-lg border border-gray-200 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-bold" style={{ color: '#001b3f' }}>
+                      <p className="font-bold text-slate-900">
                         {selectedAdminClaim.paymentType === 'advance' ? 'Advance claim' : 'Payment claim'}
                       </p>
-                      <p className="text-xs" style={{ color: '#3f6790' }}>{format(new Date(selectedAdminClaim.submittedAt), 'MMM dd, yyyy')} 08:36 AM</p>
+                      <p className="text-xs text-slate-500">{format(new Date(selectedAdminClaim.submittedAt), 'MMM dd, yyyy')} 08:36 AM</p>
                     </div>
                     <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">{selectedAdminClaim.status === 'paid' ? 'Paid' : getAdminStatusLabel(selectedAdminClaim)}</span>
                   </div>
                   <div className="mt-4 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 text-sm">
-                    <span style={{ color: '#41658a' }}>Amount</span>
-                    <span className="font-bold" style={{ color: '#001b3f' }}>KSh {requestedAmount.toLocaleString()}</span>
+                    <span className="text-sky-700">Amount</span>
+                    <span className="font-bold text-slate-900">KSh {requestedAmount.toLocaleString()}</span>
                   </div>
                   {selectedAdminClaim.notes && (
                     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Note</p>
-                      <p className="mt-1 text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.notes}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-sky-700">Note</p>
+                      <p className="mt-1 text-sm text-slate-500">{selectedAdminClaim.notes}</p>
                     </div>
                   )}
                   {/* ETIMS attachment */}
                   {selectedAdminClaim.etimsDocumentUrl && (
                     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>ETIMS Document</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-sky-700">ETIMS Document</p>
                       <div className="mt-2 flex items-center justify-between">
                         <div className="text-sm text-gray-700">{selectedAdminClaim.etimsDocumentId}</div>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setSelectedEtimsClaimId(selectedAdminClaim.id)}
-                            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-                            style={{ color: '#25476a' }}
+                            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50 text-slate-800"
                           >
                             <FileText size={16} />
                             View ETIMS
@@ -1257,13 +1354,12 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActivePage('dashboard')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100"
-              style={{ color: '#25476a' }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100 text-slate-800"
               aria-label="Back to Dashboard"
             >
               <ChevronLeft size={18} />
             </button>
-            <h1 className="text-2xl font-bold" style={{ color: '#25476a' }}>Supervisor Review (Removed)</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Supervisor Review (Removed)</h1>
           </div>
           <div className="rounded-lg bg-white p-6 text-sm text-gray-600">
             The Supervisor Review module has been removed.
@@ -1768,7 +1864,7 @@ export default function App() {
         <div className="mb-6 sm:mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Payment Tracking Dashboard</h1>
-            <p className="text-gray-600">Track earnings across Physical, Home, and Online sessions</p>
+            <p className="text-gray-600">Track earnings across Physical, Home, Center, Online, and Google Meet sessions</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {paymentSaved && (
@@ -1793,44 +1889,53 @@ export default function App() {
         {/* Dashboard Summary */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8" style={{ borderTop: '4px solid #25476a' }}>
           <h2 className="text-xl font-semibold mb-4" style={{ color: '#25476a' }}>Overall Earnings Summary</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Total Earnings</p>
               <p className="text-xl sm:text-2xl font-bold" style={{ color: '#25476a' }}>KSh {totalEarnings.toLocaleString()}</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Physical Location</p>
-              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {physicalEarnings.total.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mt-1">{physicalEarnings.sessionCount} sessions</p>
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {overallPhysical.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{overallPhysical.sessionCount} sessions</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Home Location</p>
-              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {homeEarnings.total.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mt-1">{homeEarnings.sessionCount} sessions</p>
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {overallHome.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{overallHome.sessionCount} sessions</p>
             </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
               <p className="text-sm text-gray-600 mb-1">Online Sessions</p>
-              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#38aae1' }}>KSh {onlineEarnings.total.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mt-1">{onlineEarnings.sessionCount} sessions</p>
+              <p className="text-xl sm:text-2xl font-bold text-amber-500">KSh {overallOnline.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{overallOnline.sessionCount} sessions</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
+              <p className="text-sm text-gray-600 mb-1">Center</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-600">KSh {overallCenter.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{overallCenter.sessionCount} sessions</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
+              <p className="text-sm text-gray-600 mb-1">Google Meet</p>
+              <p className="text-xl sm:text-2xl font-bold text-indigo-600">KSh {overallGoogleMeet.total.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{overallGoogleMeet.sessionCount} sessions</p>
             </div>
           </div>
         </div>
 
         {/* Module Cards */}
         <div className="mb-6 sm:mb-8">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: '#25476a' }}>Select Payment Module</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
+          <h2 className="text-lg font-semibold mb-4 text-slate-800">Select Payment Module</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6">
             {/* Physical Location Card */}
             <button
               onClick={() => setSelectedModule('physical')}
-              className={`p-4 sm:p-6 rounded-lg text-left transition-all ${
-                selectedModule === 'physical'
-                  ? 'shadow-xl ring-2 ring-offset-2'
-                  : 'bg-white shadow-md hover:shadow-lg'
-              }`}
-              style={selectedModule === 'physical' ? { backgroundColor: '#25476a', color: 'white', ringColor: '#25476a' } : {}}
+              role="button"
+              aria-pressed={selectedModule === 'physical'}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedModule('physical'); } }}
+              className={`p-4 sm:p-6 rounded-lg text-left transform transition-transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 ${selectedModule === 'physical' ? 'bg-slate-800 text-white shadow-xl ring-2 ring-offset-2 ring-slate-800' : 'bg-white shadow-md hover:shadow-lg'}`}
             >
-              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'physical' ? 'text-white' : ''}`} style={selectedModule !== 'physical' ? { color: '#25476a' } : {}}>
+              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'physical' ? '' : 'text-slate-800'}`}>
                 Physical Location
               </h3>
               <div className="space-y-2">
@@ -1846,7 +1951,7 @@ export default function App() {
                   <span className={`text-sm ${selectedModule === 'physical' ? 'text-gray-200' : 'text-gray-600'}`}>Location</span>
                   <span className="font-semibold">KSh {physicalEarnings.locationEarnings.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between pt-2 border-t" style={selectedModule === 'physical' ? { borderColor: 'rgba(255,255,255,0.3)' } : {}}>
+                <div className={`flex justify-between pt-2 border-t ${selectedModule === 'physical' ? 'border-white/30' : 'border-gray-100'}`}>
                   <span className="font-bold">Total</span>
                   <span className="font-bold text-lg">KSh {physicalEarnings.total.toLocaleString()}</span>
                 </div>
@@ -1856,17 +1961,78 @@ export default function App() {
               </div>
             </button>
 
+            {/* Center (Physical location chains) Card */}
+            <button
+              onClick={() => setSelectedModule('center')}
+              role="button"
+              aria-pressed={selectedModule === 'center'}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedModule('center'); } }}
+              className={`p-4 sm:p-6 rounded-lg text-left transform transition-transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 ${selectedModule === 'center' ? 'bg-emerald-600 text-white shadow-xl ring-2 ring-offset-2 ring-emerald-600' : 'bg-white shadow-md hover:shadow-lg'}`}
+            >
+              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'center' ? '' : 'text-slate-800'}`}>
+                Center
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'center' ? 'text-gray-200' : 'text-gray-600'}`}>Mentor</span>
+                  <span className="font-semibold">KSh {overallCenter.mentorEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'center' ? 'text-gray-200' : 'text-gray-600'}`}>Digifunzi</span>
+                  <span className="font-semibold">KSh {overallCenter.digifunziEarnings.toLocaleString()}</span>
+                </div>
+                <div className={`flex justify-between pt-2 border-t ${selectedModule === 'center' ? 'border-white/30' : 'border-gray-100'}`}>
+                  <span className="font-bold">Total</span>
+                  <span className="font-bold text-lg">KSh {overallCenter.total.toLocaleString()}</span>
+                </div>
+                <p className={`text-xs mt-2 ${selectedModule === 'center' ? 'text-gray-300' : 'text-gray-500'}`}>
+                  {overallCenter.sessionCount} sessions
+                </p>
+              </div>
+            </button>
+
+            {/* Google Meet Card */}
+            <button
+              onClick={() => setSelectedModule('googlemeet')}
+              role="button"
+              aria-pressed={selectedModule === 'googlemeet'}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedModule('googlemeet'); } }}
+              className={`p-4 sm:p-6 rounded-lg text-left transform transition-transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 ${selectedModule === 'googlemeet' ? 'bg-indigo-600 text-white shadow-xl ring-2 ring-offset-2 ring-indigo-600' : 'bg-white shadow-md hover:shadow-lg'}`}
+            >
+              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'googlemeet' ? '' : 'text-slate-800'}`}>
+                Google Meet
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'googlemeet' ? 'text-gray-200' : 'text-gray-600'}`}>Mentor</span>
+                  <span className="font-semibold">KSh {overallGoogleMeet.mentorEarnings.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-sm ${selectedModule === 'googlemeet' ? 'text-gray-200' : 'text-gray-600'}`}>Digifunzi</span>
+                  <span className="font-semibold">KSh {overallGoogleMeet.digifunziEarnings.toLocaleString()}</span>
+                </div>
+                <div className={`flex justify-between pt-2 border-t ${selectedModule === 'googlemeet' ? 'border-white/30' : 'border-gray-100'}`}>
+                  <span className="font-bold">Total</span>
+                  <span className="font-bold text-lg">KSh {overallGoogleMeet.total.toLocaleString()}</span>
+                </div>
+                <p className={`text-xs mt-2 ${selectedModule === 'googlemeet' ? 'text-gray-300' : 'text-gray-500'}`}>
+                  {overallGoogleMeet.sessionCount} sessions
+                </p>
+              </div>
+            </button>
+
             {/* Home Location Card */}
             <button
               onClick={() => setSelectedModule('home')}
-              className={`p-4 sm:p-6 rounded-lg text-left transition-all ${
-                selectedModule === 'home'
-                  ? 'shadow-xl ring-2 ring-offset-2'
-                  : 'bg-white shadow-md hover:shadow-lg'
-              }`}
-              style={selectedModule === 'home' ? { backgroundColor: '#38aae1', color: 'white', ringColor: '#38aae1' } : {}}
+              role="button"
+              aria-pressed={selectedModule === 'home'}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedModule('home'); } }}
+              className={`p-4 sm:p-6 rounded-lg text-left transform transition-transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 ${selectedModule === 'home' ? 'bg-sky-500 text-white shadow-xl ring-2 ring-offset-2 ring-sky-500' : 'bg-white shadow-md hover:shadow-lg'}`}
             >
-              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'home' ? 'text-white' : ''}`} style={selectedModule !== 'home' ? { color: '#25476a' } : {}}>
+              <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'home' ? '' : 'text-slate-800'}`}>
                 Home Location
               </h3>
               <div className="space-y-2">
@@ -1878,7 +2044,7 @@ export default function App() {
                   <span className={`text-sm ${selectedModule === 'home' ? 'text-gray-200' : 'text-gray-600'}`}>Digifunzi</span>
                   <span className="font-semibold">KSh {homeEarnings.digifunziEarnings.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between pt-2 border-t" style={selectedModule === 'home' ? { borderColor: 'rgba(255,255,255,0.3)' } : {}}>
+                <div className={`flex justify-between pt-2 border-t ${selectedModule === 'home' ? 'border-white/30' : 'border-gray-100'}`}>
                   <span className="font-bold">Total</span>
                   <span className="font-bold text-lg">KSh {homeEarnings.total.toLocaleString()}</span>
                 </div>
@@ -1896,7 +2062,7 @@ export default function App() {
                   ? 'shadow-xl ring-2 ring-offset-2'
                   : 'bg-white shadow-md hover:shadow-lg'
               }`}
-              style={selectedModule === 'online' ? { backgroundColor: '#feb139', color: 'white', ringColor: '#feb139' } : {}}
+              style={selectedModule === 'online' ? { backgroundColor: '#feb139', color: 'white' } : {}}
             >
               <h3 className={`text-xl font-bold mb-3 ${selectedModule === 'online' ? 'text-white' : ''}`} style={selectedModule !== 'online' ? { color: '#25476a' } : {}}>
                 Online Sessions
@@ -1926,7 +2092,7 @@ export default function App() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden min-w-0">
           <div className="p-4 sm:p-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between" style={{ backgroundColor: '#25476a' }}>
             <h2 className="text-xl font-semibold text-white">
-              {selectedModule === 'physical' ? 'Physical Location' : selectedModule === 'home' ? 'Home Locations' : 'Online Sessions'}
+              {selectedModule === 'physical' ? 'Physical Location' : selectedModule === 'home' ? 'Home Locations' : selectedModule === 'center' ? 'Center Sessions' : selectedModule === 'googlemeet' ? 'Google Meet Sessions' : 'Online Sessions'}
             </h2>
             <div className="relative w-full lg:w-80">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -1982,7 +2148,7 @@ export default function App() {
                       <Calendar size={15} className="text-gray-400" />
                       <span>{claim.claimMonth}</span>
                     </div>
-                    {selectedModule === 'physical' && (
+                    { (selectedModule === 'physical' || selectedModule === 'center') && (
                       <div className="flex items-center gap-2">
                         <MapPin size={15} className="text-gray-400" />
                         <span>{claim.courseSessions[0]?.location || 'Physical location'}</span>
