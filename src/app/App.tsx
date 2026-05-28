@@ -12,6 +12,16 @@ import {
   Smartphone,
   Building2,
   ClipboardList,
+  Eye,
+  FileText,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Home,
+  Laptop,
+  Receipt,
+  Users,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import * as Dialog from '@radix-ui/react-dialog';
@@ -20,6 +30,11 @@ type ModuleType = 'physical' | 'home' | 'online';
 type PaymentStatus = 'paid' | 'pending';
 type PaymentMethod = 'MPESA' | 'Bank Transfer';
 type ClaimStatus = 'submitted' | 'approved' | 'paid';
+type SupervisorClaimStatus = 'pending_review' | 'approved' | 'rejected' | 'moved_to_finance';
+type ClaimPaymentType = 'full' | 'advance';
+type AssignmentStatus = 'issued' | 'submitted' | 'graded';
+type ReportStatus = 'pending' | 'graded';
+type AdminPage = 'dashboard' | 'supervisor' | 'claims' | 'payment' | 'claim-detail' | 'assignment-detail' | 'report-detail';
 
 type Session = {
   id: number;
@@ -66,7 +81,25 @@ type MentorClaim = {
   totalSessions: number;
   submittedAt: string;
   status: ClaimStatus;
+  supervisorStatus: SupervisorClaimStatus;
+  paymentType: ClaimPaymentType;
+  progressPercent: number;
+  etimsDocumentId: string;
+  etimsDocumentUrl: string;
+  courseActivity: string[];
+  rejectionReason?: string;
+  reviewedAt?: string;
+  movedToFinanceAt?: string;
   notes?: string;
+};
+
+type ClaimStudent = {
+  id: number;
+  name: string;
+  initials: string;
+  attendance: 'present' | 'absent';
+  assignmentStatus: AssignmentStatus;
+  reportStatus: ReportStatus;
 };
 
 // Payment rates in KSh
@@ -99,6 +132,51 @@ const paymentMethods: Array<{ name: PaymentMethod; icon: typeof Smartphone }> = 
   { name: 'MPESA', icon: Smartphone },
   { name: 'Bank Transfer', icon: Building2 },
 ];
+
+const getClaimProgress = (completedSessions: number, totalSessions: number) => (
+  Math.round((completedSessions / totalSessions) * 100)
+);
+
+const createEtimsUrl = (claimId: number) => `https://etims.digifunzi.local/documents/ETIMS-${claimId}`;
+
+const studentNamePool = [
+  'Amara Osei',
+  'Brian Kamau',
+  'Cynthia Mwangi',
+  'David Njoroge',
+  'Esther Akinyi',
+  'Felix Otieno',
+  'James Kariuki',
+  'Lena Omondi',
+];
+
+const getInitials = (name: string) => (
+  name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+);
+
+const getClaimStudents = (claim: MentorClaim): ClaimStudent[] => {
+  const count = claim.module === 'physical' ? 6 : 2;
+  return studentNamePool.slice(0, count).map((name, index) => {
+    const isLearnerRow = index === 0;
+    const submittedButNotGraded = claim.progressPercent < 70 && index === count - 1;
+    const issuedOnly = claim.progressPercent < 40 && index >= Math.max(count - 2, 1);
+    const reportPending = claim.progressPercent < 60 && index === count - 1;
+
+    return {
+      id: claim.id * 10 + index,
+      name: isLearnerRow ? claim.learner : name,
+      initials: getInitials(isLearnerRow ? claim.learner : name),
+      attendance: claim.progressPercent < 30 && index === count - 1 ? 'absent' : 'present',
+      assignmentStatus: issuedOnly ? 'issued' : submittedButNotGraded ? 'submitted' : 'graded',
+      reportStatus: reportPending ? 'pending' : 'graded',
+    };
+  });
+};
 
 // Mock data for sessions
 const mockSessions: Session[] = [
@@ -165,7 +243,15 @@ const additionalMockSessions: Session[] = [
 
 // Merge additional sessions into the main mockSessions array so the rest of the app uses them
 const mergedMockSessions: Session[] = [...mockSessions, ...additionalMockSessions];
-const mockClaims: MentorClaim[] = [
+type SeedMentorClaim = Omit<
+  MentorClaim,
+  'supervisorStatus' | 'paymentType' | 'progressPercent' | 'etimsDocumentId' | 'etimsDocumentUrl' | 'courseActivity'
+> & Partial<Pick<
+  MentorClaim,
+  'supervisorStatus' | 'paymentType' | 'progressPercent' | 'etimsDocumentId' | 'etimsDocumentUrl' | 'courseActivity'
+>>;
+
+const seedClaims: SeedMentorClaim[] = [
   {
     id: 1001,
     sessionIds: [3, 5, 8, 10],
@@ -174,11 +260,14 @@ const mockClaims: MentorClaim[] = [
     courseName: 'Simple robotics',
     module: 'physical',
     claimMonth: 'May 2026',
-    completedSessions: 1,
+    completedSessions: 4,
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-05-31',
     status: 'submitted',
-    notes: 'One completed physical session submitted in the monthly claim cycle.',
+    supervisorStatus: 'pending_review',
+    paymentType: 'advance',
+    progressPercent: 33,
+    notes: 'Advance claim submitted after the first block of physical sessions.',
   },
   {
     id: 1002,
@@ -192,6 +281,10 @@ const mockClaims: MentorClaim[] = [
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-05-31',
     status: 'approved',
+    supervisorStatus: 'moved_to_finance',
+    paymentType: 'full',
+    progressPercent: 100,
+    movedToFinanceAt: '2026-06-02',
     notes: 'Approved after reviewing the completed home-course sessions.',
   },
   {
@@ -206,6 +299,10 @@ const mockClaims: MentorClaim[] = [
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-05-31',
     status: 'approved',
+    supervisorStatus: 'moved_to_finance',
+    paymentType: 'advance',
+    progressPercent: 50,
+    movedToFinanceAt: '2026-06-02',
     notes: 'Six online sessions submitted for this month; ready for payout.',
   },
   {
@@ -220,6 +317,11 @@ const mockClaims: MentorClaim[] = [
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-04-30',
     status: 'paid',
+    supervisorStatus: 'moved_to_finance',
+    paymentType: 'full',
+    progressPercent: 100,
+    reviewedAt: '2026-05-01',
+    movedToFinanceAt: '2026-05-01',
     notes: 'Paid through monthly mentor payout.',
   },
 
@@ -236,7 +338,10 @@ const mockClaims: MentorClaim[] = [
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-06-15',
     status: 'submitted',
-    notes: 'Multiple physical sessions at local partner venues.',
+    supervisorStatus: 'pending_review',
+    paymentType: 'full',
+    progressPercent: 25,
+    notes: 'Full-payment request submitted before the course reached completion.',
   },
   {
     id: 1006,
@@ -250,6 +355,11 @@ const mockClaims: MentorClaim[] = [
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-06-15',
     status: 'approved',
+    supervisorStatus: 'moved_to_finance',
+    paymentType: 'advance',
+    progressPercent: 35,
+    reviewedAt: '2026-06-16',
+    movedToFinanceAt: '2026-06-16',
     notes: 'Home visits verified and approved.',
   },
   {
@@ -263,8 +373,13 @@ const mockClaims: MentorClaim[] = [
     completedSessions: 2,
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-06-14',
-    status: 'approved',
-    notes: 'Online sessions recorded and approved.',
+    status: 'submitted',
+    supervisorStatus: 'rejected',
+    paymentType: 'advance',
+    progressPercent: 17,
+    rejectionReason: 'Advance claims require at least 30% course progress.',
+    reviewedAt: '2026-06-15',
+    notes: 'Online sessions were reviewed but did not meet the advance-payment threshold.',
   },
   {
     id: 1008,
@@ -278,9 +393,28 @@ const mockClaims: MentorClaim[] = [
     totalSessions: MAX_COURSE_SESSION_COUNT,
     submittedAt: '2026-06-16',
     status: 'paid',
+    supervisorStatus: 'moved_to_finance',
+    paymentType: 'advance',
+    progressPercent: 42,
+    reviewedAt: '2026-06-17',
+    movedToFinanceAt: '2026-06-17',
     notes: 'Paid claim for a cohort of animation sessions.',
   },
 ];
+
+const mockClaims: MentorClaim[] = seedClaims.map((claim) => ({
+  ...claim,
+  supervisorStatus: claim.supervisorStatus ?? (claim.status === 'approved' ? 'moved_to_finance' : 'pending_review'),
+  paymentType: claim.paymentType ?? (claim.completedSessions === claim.totalSessions ? 'full' : 'advance'),
+  progressPercent: claim.progressPercent ?? getClaimProgress(claim.completedSessions, claim.totalSessions),
+  etimsDocumentId: claim.etimsDocumentId ?? `ETIMS-${claim.id}`,
+  etimsDocumentUrl: claim.etimsDocumentUrl ?? createEtimsUrl(claim.id),
+  courseActivity: claim.courseActivity ?? [
+    `${claim.completedSessions}/${claim.totalSessions} course sessions marked complete`,
+    `${claim.module === 'physical' ? 'Physical location' : claim.module === 'home' ? 'Home location' : 'Online'} delivery evidence checked`,
+    `Claim submitted for ${claim.claimMonth}`,
+  ],
+}));
 
 export default function App() {
   const [sessions, setSessions] = useState<Session[]>(mergedMockSessions);
@@ -288,8 +422,12 @@ export default function App() {
   const [selectedModule, setSelectedModule] = useState<ModuleType>('physical');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
-  const [activePage, setActivePage] = useState<'dashboard' | 'claims' | 'payment'>('dashboard');
+  const [activePage, setActivePage] = useState<AdminPage>('dashboard');
   const [selectedClaimId, setSelectedClaimId] = useState<number | null>(null);
+  const [selectedAdminClaimId, setSelectedAdminClaimId] = useState<number | null>(null);
+  const [selectedEvidenceSession, setSelectedEvidenceSession] = useState(1);
+  const [selectedEtimsClaimId, setSelectedEtimsClaimId] = useState<number | null>(null);
+  const [rejectionReasons, setRejectionReasons] = useState<Record<number, string>>({});
   const [paymentSaved, setPaymentSaved] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
     learner: '',
@@ -372,15 +510,68 @@ export default function App() {
     return { submitted, approved, paid, totalAmount, approvedAmount };
   }, [claimRows]);
 
+  const financeClaimRows = useMemo(() => (
+    claimRows.filter((claim) => claim.supervisorStatus === 'moved_to_finance' && (claim.status === 'approved' || claim.status === 'paid'))
+  ), [claimRows]);
+
+  const supervisorSummary = useMemo(() => {
+    const pending = claimRows.filter((claim) => claim.supervisorStatus === 'pending_review').length;
+    const approved = claimRows.filter((claim) => claim.supervisorStatus === 'approved').length;
+    const rejected = claimRows.filter((claim) => claim.supervisorStatus === 'rejected').length;
+    const movedToFinance = claimRows.filter((claim) => claim.supervisorStatus === 'moved_to_finance').length;
+
+    return { pending, approved, rejected, movedToFinance };
+  }, [claimRows]);
+
+  const selectedEtimsClaim = selectedEtimsClaimId ? claimRows.find((claim) => claim.id === selectedEtimsClaimId) : null;
+
+  const canSupervisorApprove = (claim: MentorClaim) => (
+    claim.paymentType === 'full' ? claim.progressPercent >= 100 : claim.progressPercent >= 30
+  );
+
+  const getSupervisorStatusLabel = (status: SupervisorClaimStatus) => {
+    if (status === 'pending_review') return 'Pending Review';
+    if (status === 'moved_to_finance') return 'Approved - Sent to Admin';
+    return status === 'approved' ? 'Approved' : 'Rejected';
+  };
+
+  const getAdminStatusLabel = (claim: MentorClaim) => {
+    if (claim.status === 'paid') return 'Paid';
+    if (claim.supervisorStatus === 'moved_to_finance') return 'Ready to Pay';
+    if (claim.supervisorStatus === 'rejected') return 'Rejected by Supervisor';
+    if (claim.supervisorStatus === 'approved') return 'Supervisor Approved';
+    return 'Pending Supervisor Review';
+  };
+
   const approveClaim = (claimId: number) => {
     setClaims((currentClaims) => currentClaims.map((claim) => (
-      claim.id === claimId ? { ...claim, status: 'approved' } : claim
+      claim.id === claimId && claim.supervisorStatus === 'pending_review' && canSupervisorApprove(claim)
+        ? {
+            ...claim,
+            status: 'approved',
+            supervisorStatus: 'moved_to_finance',
+            reviewedAt: format(new Date(), 'yyyy-MM-dd'),
+            movedToFinanceAt: format(new Date(), 'yyyy-MM-dd'),
+            rejectionReason: undefined,
+          }
+        : claim
+    )));
+  };
+
+  const rejectClaim = (claimId: number) => {
+    const reason = rejectionReasons[claimId]?.trim();
+    if (!reason) return;
+
+    setClaims((currentClaims) => currentClaims.map((claim) => (
+      claim.id === claimId
+        ? { ...claim, supervisorStatus: 'rejected', status: 'submitted', rejectionReason: reason, reviewedAt: format(new Date(), 'yyyy-MM-dd') }
+        : claim
     )));
   };
 
   const startClaimPayment = (claimId: number) => {
     const claim = claimRows.find((item) => item.id === claimId);
-    if (!claim || claim.status !== 'approved') return;
+    if (!claim || claim.status !== 'approved' || claim.supervisorStatus !== 'moved_to_finance') return;
 
     setSelectedClaimId(claim.id);
     setPaymentSaved(false);
@@ -472,7 +663,7 @@ export default function App() {
 
   // Calculate earnings for each module
   const calculateModuleEarnings = (module: ModuleType) => {
-    const moduleClaims = claimRows.filter(claim => claim.module === module);
+    const moduleClaims = financeClaimRows.filter(claim => claim.module === module);
     const sessionCount = moduleClaims.reduce((sum, claim) => sum + claim.completedSessions, 0);
     const mentorEarnings = moduleClaims.reduce((sum, claim) => sum + getMentorCourseClaimAmount(claim), 0);
 
@@ -511,8 +702,43 @@ export default function App() {
   const onlineEarnings = calculateModuleEarnings('online');
   const totalEarnings = physicalEarnings.total + homeEarnings.total + onlineEarnings.total;
   const selectedClaim = selectedClaimId ? claimRows.find((claim) => claim.id === selectedClaimId) : null;
+  const selectedAdminClaim = selectedAdminClaimId ? claimRows.find((claim) => claim.id === selectedAdminClaimId) : null;
 
   const mentorStats = calculateMentorStats();
+
+  const openAdminClaim = (claimId: number) => {
+    setSelectedAdminClaimId(claimId);
+    setSelectedEvidenceSession(1);
+    setActivePage('claim-detail');
+  };
+
+  const backToAdminClaim = () => {
+    setActivePage(selectedAdminClaimId ? 'claim-detail' : 'claims');
+  };
+
+  const getAssignmentStatusClass = (status: AssignmentStatus) => (
+    status === 'graded'
+      ? 'bg-green-50 text-green-700 border-green-200'
+      : status === 'submitted'
+        ? 'bg-orange-50 text-orange-700 border-orange-200'
+        : 'bg-gray-100 text-gray-700 border-gray-200'
+  );
+
+  const getReportStatusLabel = (status: ReportStatus) => (status === 'graded' ? 'Graded' : 'Pending');
+
+  const getReportStatusClass = (status: ReportStatus) => (
+    status === 'graded' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-pink-50 text-pink-700 border-pink-200'
+  );
+
+  const getClaimStatusPillClass = (claim: MentorClaim) => {
+    if (claim.status === 'paid' || claim.status === 'approved') return 'bg-green-50 text-green-700';
+    if (claim.supervisorStatus === 'rejected') return 'bg-red-50 text-red-700';
+    return 'bg-yellow-50 text-yellow-700';
+  };
+
+  const getMethodLabel = (module: ModuleType) => (
+    module === 'physical' ? 'Physical' : module === 'home' ? 'Home' : 'Online'
+  );
 
   // Get all monthly claims for the selected mentor across all modules
   const getMentorDetails = (mentorName: string) => {
@@ -554,14 +780,659 @@ export default function App() {
     };
   };
 
-  if (activePage === 'claims') {
+  if (activePage === 'assignment-detail' || activePage === 'report-detail') {
+    if (!selectedAdminClaim) {
+      return (
+        <div className="min-h-screen bg-gray-50 p-6">
+          <button
+            type="button"
+            onClick={() => setActivePage('claims')}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 font-semibold shadow-sm"
+            style={{ color: '#25476a' }}
+          >
+            <ChevronLeft size={18} />
+            Back to Approved Claims
+          </button>
+        </div>
+      );
+    }
+
+    const students = getClaimStudents(selectedAdminClaim);
+    const isAssignmentPage = activePage === 'assignment-detail';
+    const gradedAssignments = students.filter((student) => student.assignmentStatus === 'graded').length;
+    const submittedAssignments = students.filter((student) => student.assignmentStatus === 'submitted').length;
+    const issuedAssignments = students.filter((student) => student.assignmentStatus === 'issued').length;
+    const gradedReports = students.filter((student) => student.reportStatus === 'graded').length;
+    const pendingReports = students.filter((student) => student.reportStatus === 'pending').length;
+
+    return (
+      <div className="min-h-screen w-full min-w-0 bg-gray-100 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="w-full min-w-0 max-w-screen-2xl mx-auto">
+          <div className="mb-5 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={backToAdminClaim}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white"
+              style={{ color: '#25476a' }}
+              aria-label="Back to course claim"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePage('claims')}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white"
+              style={{ color: '#25476a' }}
+              aria-label="Back to mentor claims"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: '#001b3f' }}>
+                {isAssignmentPage ? 'Assignments' : 'Reports'} - Session {selectedEvidenceSession}
+              </h1>
+              <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.submittedAt}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedEvidenceSession((current) => Math.min(current + 1, selectedAdminClaim.completedSessions))}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm transition-colors hover:bg-white"
+              style={{ color: '#25476a' }}
+              aria-label="Next session"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          <div className="mb-5 rounded-lg bg-white px-5 py-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>{selectedAdminClaim.courseName}</p>
+                <h2 className="text-xl font-bold" style={{ color: '#001b3f' }}>
+                  Session {selectedEvidenceSession}{isAssignmentPage ? '' : ' Report'}
+                </h2>
+                <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.submittedAt} - {students.length} students</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {isAssignmentPage ? (
+                  <>
+                    <div className="rounded-lg bg-green-50 px-6 py-3 text-center">
+                      <p className="text-lg font-bold text-green-700">{gradedAssignments}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-green-700">Graded</p>
+                    </div>
+                    <div className="rounded-lg bg-orange-50 px-6 py-3 text-center">
+                      <p className="text-lg font-bold text-orange-700">{submittedAssignments}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-orange-700">Submitted</p>
+                    </div>
+                    <div className="rounded-lg bg-gray-100 px-6 py-3 text-center">
+                      <p className="text-lg font-bold" style={{ color: '#25476a' }}>{issuedAssignments}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Issued</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-lg bg-green-50 px-8 py-3 text-center">
+                      <p className="text-lg font-bold text-green-700">{gradedReports}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-green-700">Graded</p>
+                    </div>
+                    <div className="rounded-lg bg-pink-50 px-8 py-3 text-center">
+                      <p className="text-lg font-bold text-pink-700">{pendingReports}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-pink-700">Pending</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead style={{ backgroundColor: '#eaf1f8' }}>
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Student Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>
+                      {isAssignmentPage ? 'Assignment' : 'Report'}
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>
+                      {isAssignmentPage ? 'Progress' : 'Status'}
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>
+                      {isAssignmentPage ? 'Assignment File' : 'Download'}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {students.map((student) => (
+                    <tr key={student.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: '#214a73' }}>
+                            {student.initials}
+                          </span>
+                          <span className="font-semibold" style={{ color: '#001b3f' }}>{student.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-semibold" style={{ color: '#001b3f' }}>Session {selectedEvidenceSession}{isAssignmentPage ? '' : ' Report'}</p>
+                        <p className="text-xs" style={{ color: '#3f6790' }}>Session {selectedEvidenceSession}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        {isAssignmentPage ? (
+                          <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: '#001b3f' }}>
+                            {(['issued', 'submitted', 'graded'] as AssignmentStatus[]).map((status, index) => (
+                              <span key={status} className="inline-flex items-center gap-2">
+                                <span className={`h-2.5 w-2.5 rounded-full ${student.assignmentStatus === status ? 'bg-[#214a73]' : 'bg-gray-300'}`} />
+                                <span className="capitalize">{status}</span>
+                                {index < 2 && <span className="h-px w-5 bg-gray-300" />}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getReportStatusClass(student.reportStatus)}`}>
+                            {getReportStatusLabel(student.reportStatus)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-gray-50"
+                          style={{ color: '#001b3f' }}
+                        >
+                          <Download size={16} />
+                          Download
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activePage === 'claim-detail') {
+    if (!selectedAdminClaim) {
+      return (
+        <div className="min-h-screen bg-gray-50 p-6">
+          <button
+            type="button"
+            onClick={() => setActivePage('claims')}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 font-semibold shadow-sm"
+            style={{ color: '#25476a' }}
+          >
+            <ChevronLeft size={18} />
+            Back to Approved Claims
+          </button>
+        </div>
+      );
+    }
+
+    const students = getClaimStudents(selectedAdminClaim);
+    const amountPayable = getMentorCourseClaimAmount(selectedAdminClaim);
+    const advancePayable = Math.round(amountPayable * 0.3);
+    const attendancePercent = Math.round((students.filter((student) => student.attendance === 'present').length / students.length) * 100);
+    const assignmentPercent = Math.round((students.filter((student) => student.assignmentStatus === 'graded').length / students.length) * 100);
+    const reportPercent = Math.round((students.filter((student) => student.reportStatus === 'graded').length / students.length) * 100);
+
+    return (
+      <div className="min-h-screen w-full min-w-0 bg-gray-100 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="w-full min-w-0 max-w-screen-2xl mx-auto">
+          <div className="mb-5 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActivePage('claims')}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white"
+              style={{ color: '#25476a' }}
+              aria-label="Back to mentor claims"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white" style={{ backgroundColor: '#25476a' }}>
+              <BookOpen size={20} />
+            </span>
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: '#001b3f' }}>{selectedAdminClaim.courseName}</h1>
+              <div className="flex flex-wrap items-center gap-2 text-sm" style={{ color: '#3f6790' }}>
+                <span className="rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold text-white">
+                  {selectedAdminClaim.module === 'physical' ? 'Physical' : selectedAdminClaim.module === 'home' ? 'Home' : 'Online'}
+                </span>
+                <span>{selectedAdminClaim.courseSessions[0]?.location || `${selectedAdminClaim.module} class`}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-6 grid overflow-hidden rounded-lg bg-white shadow-sm lg:grid-cols-3">
+            <div className="flex items-center gap-5 border-b border-gray-200 p-6 lg:border-b-0 lg:border-r">
+              <div
+                className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-lg font-bold"
+                style={{
+                  color: '#001b3f',
+                  background: `conic-gradient(#16a34a ${selectedAdminClaim.progressPercent * 3.6}deg, #e5edf5 0deg)`,
+                }}
+              >
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white">{selectedAdminClaim.progressPercent}%</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Course Progress</p>
+                <p className="text-lg font-bold" style={{ color: '#001b3f' }}>{selectedAdminClaim.completedSessions}/{selectedAdminClaim.totalSessions} sessions</p>
+                <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold" style={{ color: '#25476a' }}>
+                  <Users size={14} />
+                  {students.length} students
+                </span>
+              </div>
+            </div>
+            <div className="border-b border-gray-200 p-6 lg:border-b-0 lg:border-r">
+              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Amount Payable</p>
+              <p className="mt-2 text-2xl font-bold" style={{ color: '#25476a' }}>KSh {amountPayable.toLocaleString()}</p>
+              <p className="mt-4 text-sm" style={{ color: '#41658a' }}>Advance payable</p>
+              <p className="font-bold" style={{ color: '#d35400' }}>KSh {advancePayable.toLocaleString()}</p>
+            </div>
+            <div className="p-6">
+              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Payment Actions</p>
+              <p className="mt-2 text-sm font-semibold" style={{ color: '#001b3f' }}>
+                {getAdminStatusLabel(selectedAdminClaim)}
+              </p>
+              {selectedAdminClaim.status === 'approved' ? (
+                <button
+                  type="button"
+                  onClick={() => startClaimPayment(selectedAdminClaim.id)}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold text-white shadow-sm"
+                  style={{ backgroundColor: '#25476a' }}
+                >
+                  <Receipt size={18} />
+                  Pay Mentor
+                </button>
+              ) : (
+                <div className="mt-6 rounded-lg bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+                  Payment status: {selectedAdminClaim.status === 'paid' ? 'Paid' : getAdminStatusLabel(selectedAdminClaim)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <div className="overflow-hidden rounded-lg bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-gray-200 p-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold" style={{ color: '#001b3f' }}>Session {selectedEvidenceSession}</h2>
+                  <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.submittedAt}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold" style={{ color: '#001b3f' }}>Attendance {attendancePercent}%</span>
+                  <button
+                    type="button"
+                    onClick={() => setActivePage('assignment-detail')}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold hover:bg-gray-50"
+                    style={{ color: '#001b3f' }}
+                  >
+                    Assignment {assignmentPercent}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePage('report-detail')}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold hover:bg-gray-50"
+                    style={{ color: '#001b3f' }}
+                  >
+                    Report {reportPercent}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvidenceSession((current) => Math.max(1, current - 1))}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-50"
+                    aria-label="Previous session"
+                    style={{ color: '#25476a' }}
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <span className="text-sm" style={{ color: '#001b3f' }}>{selectedEvidenceSession} / {selectedAdminClaim.completedSessions}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvidenceSession((current) => Math.min(current + 1, selectedAdminClaim.completedSessions))}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-50"
+                    aria-label="Next session"
+                    style={{ color: '#25476a' }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead style={{ backgroundColor: '#eaf1f8' }}>
+                    <tr>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Student</th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Attendance</th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Assignment</th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Report</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {students.map((student) => (
+                      <tr key={student.id} className="hover:bg-gray-50">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: '#214a73' }}>
+                              {student.initials}
+                            </span>
+                            <span className="font-semibold" style={{ color: '#001b3f' }}>{student.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${student.attendance === 'present' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                            {student.attendance === 'present' ? 'Present' : 'Absent'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() => setActivePage('assignment-detail')}
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${getAssignmentStatusClass(student.assignmentStatus)}`}
+                          >
+                            {student.assignmentStatus}
+                          </button>
+                        </td>
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() => setActivePage('report-detail')}
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getReportStatusClass(student.reportStatus)}`}
+                          >
+                            {getReportStatusLabel(student.reportStatus)}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: '#001b3f' }}>Claim History</h2>
+                  <p className="text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.courseName}</p>
+                </div>
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold" style={{ color: '#25476a' }}>
+                  {selectedAdminClaim.courseActivity.length}
+                </span>
+              </div>
+              <div className="mt-5 space-y-4">
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold" style={{ color: '#001b3f' }}>
+                        {selectedAdminClaim.paymentType === 'advance' ? 'Advance claim' : 'Payment claim'}
+                      </p>
+                      <p className="text-xs" style={{ color: '#3f6790' }}>{format(new Date(selectedAdminClaim.submittedAt), 'MMM dd, yyyy')} 08:36 AM</p>
+                    </div>
+                    <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">{selectedAdminClaim.status === 'paid' ? 'Paid' : getAdminStatusLabel(selectedAdminClaim)}</span>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 text-sm">
+                    <span style={{ color: '#41658a' }}>Amount</span>
+                    <span className="font-bold" style={{ color: '#001b3f' }}>KSh {amountPayable.toLocaleString()}</span>
+                  </div>
+                  {selectedAdminClaim.notes && (
+                    <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#41658a' }}>Note</p>
+                      <p className="mt-1 text-sm" style={{ color: '#3f6790' }}>{selectedAdminClaim.notes}</p>
+                    </div>
+                  )}
+                </div>
+                {selectedAdminClaim.courseActivity.map((activity) => (
+                  <div key={activity} className="flex items-start gap-3 rounded-lg bg-gray-50 p-3 text-sm" style={{ color: '#25476a' }}>
+                    <CheckCircle size={16} className="mt-0.5 shrink-0 text-green-600" />
+                    <span>{activity}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activePage === 'supervisor') {
     return (
       <div className="min-h-screen w-full min-w-0 bg-gray-50 px-4 py-4 sm:px-6 lg:px-8">
         <div className="w-full min-w-0 max-w-screen-2xl mx-auto">
           <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Mentor Claims</h1>
-              <p className="text-gray-600">Review completed-session claims submitted by mentors before payout.</p>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Supervisor Payment Approval</h1>
+              <p className="text-gray-600">Review mentor claims, approve eligible claims, or reject claims with a reason.</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={() => setActivePage('claims')}
+                className="inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 font-semibold text-white shadow-sm transition-colors hover:brightness-95"
+                style={{ backgroundColor: '#25476a' }}
+              >
+                <ClipboardList size={18} />
+                Approved Claims
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivePage('dashboard')}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 font-semibold shadow-sm transition-colors hover:bg-gray-50"
+                style={{ color: '#25476a' }}
+              >
+                <X size={18} />
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <p className="text-sm text-gray-600 mb-1">Pending Review</p>
+              <p className="text-2xl font-bold text-orange-700">{supervisorSummary.pending}</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <p className="text-sm text-gray-600 mb-1">Ready for Admin</p>
+              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>{supervisorSummary.movedToFinance}</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <p className="text-sm text-gray-600 mb-1">Paid by Admin</p>
+              <p className="text-2xl font-bold" style={{ color: '#25476a' }}>{claimRows.filter((claim) => claim.status === 'paid').length}</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <p className="text-sm text-gray-600 mb-1">Rejected</p>
+              <p className="text-2xl font-bold text-red-700">{supervisorSummary.rejected}</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {claimRows.map((claim) => {
+              const isValidForApproval = canSupervisorApprove(claim);
+              const rejectReason = rejectionReasons[claim.id] ?? '';
+
+              return (
+                <div key={claim.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 sm:p-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-xl font-bold" style={{ color: '#25476a' }}>Claim #{claim.id}</h2>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                          claim.supervisorStatus === 'rejected' ? 'bg-red-100 text-red-700' :
+                          claim.supervisorStatus === 'moved_to_finance' ? 'bg-green-100 text-green-700' :
+                          claim.supervisorStatus === 'approved' ? 'bg-blue-100 text-blue-700' :
+                          'bg-orange-100 text-orange-700'
+                        }`}>
+                          {claim.supervisorStatus === 'rejected' ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
+                          {getSupervisorStatusLabel(claim.supervisorStatus)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {claim.mentor} submitted {claim.paymentType === 'full' ? 'a full payment' : 'an advance payment'} claim for {claim.learner}.
+                      </p>
+                    </div>
+                    <div className="text-left xl:text-right">
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Claim Amount</p>
+                      <p className="text-2xl font-bold" style={{ color: '#feb139' }}>KSh {getMentorCourseClaimAmount(claim).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:p-6 lg:grid-cols-3">
+                    <div className="lg:col-span-2">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Course Details</p>
+                          <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>{claim.courseName}</p>
+                          <p className="text-sm text-gray-600">{claim.completedSessions}/{claim.totalSessions} sessions claimed</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Teaching Method</p>
+                          <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>
+                            {claim.module === 'physical' ? 'Physical Location' : claim.module === 'home' ? 'Home Location' : 'Online Sessions'}
+                          </p>
+                          <p className="text-sm text-gray-600">{claim.claimMonth}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Course Progress</p>
+                          <div className="mt-2 h-3 rounded-full bg-gray-100">
+                            <div className="h-3 rounded-full" style={{ width: `${Math.min(claim.progressPercent, 100)}%`, backgroundColor: isValidForApproval ? '#38aae1' : '#f97316' }} />
+                          </div>
+                          <p className="mt-1 text-sm font-semibold" style={{ color: '#25476a' }}>{claim.progressPercent}% complete</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Validation</p>
+                          <p className={`mt-1 text-sm font-semibold ${isValidForApproval ? 'text-green-700' : 'text-orange-700'}`}>
+                            {claim.supervisorStatus === 'moved_to_finance'
+                              ? 'Approved and sent to admin'
+                              : isValidForApproval
+                              ? 'Eligible for supervisor approval'
+                              : claim.paymentType === 'full'
+                                ? 'Full payment requires 100% progress'
+                                : 'Advance payment requires at least 30% progress'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-lg bg-gray-50 p-4">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Course Activity</p>
+                        <ul className="grid gap-2 text-sm text-gray-700">
+                          {claim.courseActivity.map((activity) => (
+                            <li key={activity} className="flex items-start gap-2">
+                              <CheckCircle size={15} className="mt-0.5 shrink-0 text-green-600" />
+                              <span>{activity}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">eTIMS Document</p>
+                      <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>{claim.etimsDocumentId}</p>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEtimsClaimId(claim.id)}
+                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-gray-50"
+                        style={{ color: '#25476a' }}
+                      >
+                        <Eye size={16} />
+                        Preview eTIMS
+                      </button>
+
+                      {claim.supervisorStatus === 'pending_review' && (
+                        <div className="mt-4 space-y-3">
+                          <button
+                            type="button"
+                            disabled={!isValidForApproval}
+                            onClick={() => approveClaim(claim.id)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                            style={isValidForApproval ? { backgroundColor: '#38aae1' } : undefined}
+                          >
+                            <CheckCircle size={16} />
+                            Approve
+                          </button>
+                          <textarea
+                            value={rejectReason}
+                            onChange={(event) => setRejectionReasons((current) => ({ ...current, [claim.id]: event.target.value }))}
+                            placeholder="Reason required to reject"
+                            className="min-h-20 w-full rounded-md border border-gray-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2"
+                            style={{ color: '#25476a' }}
+                          />
+                          <button
+                            type="button"
+                            disabled={rejectReason.trim() === ''}
+                            onClick={() => rejectClaim(claim.id)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                            style={rejectReason.trim() !== '' ? { backgroundColor: '#dc2626' } : undefined}
+                          >
+                            <AlertCircle size={16} />
+                            Reject Claim
+                          </button>
+                        </div>
+                      )}
+
+                      {claim.supervisorStatus === 'rejected' && claim.rejectionReason && (
+                        <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                          <span className="font-semibold">Rejected:</span> {claim.rejectionReason}
+                        </div>
+                      )}
+
+                      {claim.supervisorStatus === 'moved_to_finance' && (
+                        <div className="mt-4 rounded-md bg-green-50 p-3 text-sm font-semibold text-green-700">
+                          Approved and visible to admin for payout
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Dialog.Root open={selectedEtimsClaim !== undefined && selectedEtimsClaim !== null} onOpenChange={(open) => !open && setSelectedEtimsClaimId(null)}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
+              <Dialog.Content className="fixed top-1/2 left-1/2 z-50 max-h-[90vh] w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg bg-white shadow-xl">
+                {selectedEtimsClaim && (
+                  <>
+                    <div className="flex items-start justify-between gap-4 p-5" style={{ backgroundColor: '#25476a' }}>
+                      <div>
+                        <Dialog.Title className="text-xl font-bold text-white">{selectedEtimsClaim.etimsDocumentId}</Dialog.Title>
+                        <Dialog.Description className="text-sm text-gray-200">eTIMS document preview for claim #{selectedEtimsClaim.id}</Dialog.Description>
+                      </div>
+                      <Dialog.Close className="text-white hover:text-gray-300">
+                        <X size={22} />
+                      </Dialog.Close>
+                    </div>
+                    <div className="p-5">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
+                        <FileText size={32} style={{ color: '#38aae1' }} />
+                        <p className="mt-3 font-semibold" style={{ color: '#25476a' }}>{selectedEtimsClaim.courseName}</p>
+                        <p className="text-sm text-gray-600">{selectedEtimsClaim.mentor} - {selectedEtimsClaim.learner}</p>
+                        <p className="mt-3 text-sm text-gray-600">Document URL: {selectedEtimsClaim.etimsDocumentUrl}</p>
+                        <p className="mt-3 text-2xl font-bold" style={{ color: '#feb139' }}>KSh {getMentorCourseClaimAmount(selectedEtimsClaim).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+        </div>
+      </div>
+    );
+  }
+
+  if (activePage === 'claims') {
+    return (
+      <div className="min-h-screen w-full min-w-0 bg-gray-50 px-3 py-3 sm:px-4 lg:px-6">
+        <div className="w-full min-w-0 max-w-screen-2xl mx-auto">
+          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#25476a' }}>Approved Claims</h1>
+              <p className="text-gray-600">Pay claims approved by supervisors and sent to admin.</p>
             </div>
             <button
               type="button"
@@ -577,73 +1448,36 @@ export default function App() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Total Claims</p>
-              <p className="text-2xl font-bold" style={{ color: '#25476a' }}>{claimRows.length}</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Submitted</p>
-              <p className="text-2xl font-bold text-orange-700">{claimSummary.submitted}</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Approved</p>
-              <p className="text-2xl font-bold" style={{ color: '#38aae1' }}>{claimSummary.approved}</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Paid</p>
-              <p className="text-2xl font-bold text-green-700">{claimSummary.paid}</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-md">
-              <p className="text-sm text-gray-600 mb-1">Approved Amount</p>
-              <p className="text-2xl font-bold" style={{ color: '#feb139' }}>KSh {claimSummary.approvedAmount.toLocaleString()}</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="p-4 sm:p-6 flex items-center gap-3" style={{ backgroundColor: '#25476a' }}>
-              <ClipboardList size={22} className="text-white" />
-              <h2 className="text-xl font-semibold text-white">Incoming Mentor Claims</h2>
-            </div>
-
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div className="block lg:hidden divide-y divide-gray-200">
-              {claimRows.map((claim) => (
+              {financeClaimRows.map((claim) => (
                 <div key={claim.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold" style={{ color: '#25476a' }}>{claim.mentor}</p>
-                      <p className="text-sm text-gray-600">{claim.courseName}</p>
+                      <p className="font-semibold" style={{ color: '#001b3f' }}>{claim.courseName}</p>
+                      <p className="text-sm" style={{ color: '#25476a' }}>{claim.learner} - {claim.claimMonth}</p>
                     </div>
-                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                      claim.status === 'paid' ? 'bg-green-100 text-green-700' :
-                      claim.status === 'approved' ? 'bg-blue-100 text-blue-700' :
-                      'bg-orange-100 text-orange-700'
-                    }`}>
-                      {claim.status === 'paid' ? <CheckCircle size={14} /> : <Clock size={14} />}
-                      {claim.status}
+                    <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`}>
+                      {getAdminStatusLabel(claim)}
                     </span>
                   </div>
                   <div className="mt-3 grid gap-2 text-sm" style={{ color: '#25476a' }}>
-                    <span>Learner: {claim.learner}</span>
-                    <span>Claim month: {claim.claimMonth}</span>
+                    <span>Mentor: {claim.mentor}</span>
+                    <span>Method: {getMethodLabel(claim.module)}</span>
+                    <span>Sessions: {claim.completedSessions}/{claim.totalSessions}</span>
                     <span>Submitted: {format(new Date(claim.submittedAt), 'MMM dd, yyyy')}</span>
-                    <span>Sessions: {claim.completedSessions}/{claim.totalSessions} completed</span>
-                    <span>Module: {claim.module === 'physical' ? 'Physical' : claim.module === 'home' ? 'Home' : 'Online'}</span>
-                    <span className="font-bold" style={{ color: '#feb139' }}>KSh {getMentorCourseClaimAmount(claim).toLocaleString()}</span>
+                    <span className="font-bold">KES {getMentorCourseClaimAmount(claim).toLocaleString()}</span>
                   </div>
-                  {claim.notes && <p className="mt-3 text-sm text-gray-600">{claim.notes}</p>}
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    {claim.status === 'submitted' && (
-                      <button
-                        type="button"
-                        onClick={() => approveClaim(claim.id)}
-                        className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white"
-                        style={{ backgroundColor: '#38aae1' }}
-                      >
-                        <CheckCircle size={16} />
-                        Approve Claim
-                      </button>
-                    )}
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openAdminClaim(claim.id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold hover:bg-blue-100"
+                      style={{ color: '#25476a' }}
+                    >
+                      View More
+                      <ChevronRight size={16} />
+                    </button>
                     {claim.status === 'approved' && (
                       <button
                         type="button"
@@ -662,82 +1496,71 @@ export default function App() {
 
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
-                <thead>
+                <thead style={{ backgroundColor: '#eaf1f8' }}>
                   <tr className="border-b border-gray-200">
-                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Claim</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Mentor</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Monthly Claim</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Module</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Amount</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Status</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#25476a' }}>Action</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Course</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Mentor</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Method</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Sessions</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Claim</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Submitted</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Status</th>
+                    <th className="px-4 py-4 text-right text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>View</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {claimRows.map((claim) => (
-                    <tr key={claim.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <p className="font-semibold" style={{ color: '#25476a' }}>#{claim.id}</p>
-                        <p className="text-xs text-gray-500">Submitted {format(new Date(claim.submittedAt), 'MMM dd, yyyy')}</p>
+                  {financeClaimRows.map((claim) => (
+                    <tr key={claim.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-5">
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50" style={{ color: '#25476a' }}>
+                            {claim.module === 'physical' ? <BookOpen size={18} /> : claim.module === 'home' ? <Home size={18} /> : <Laptop size={18} />}
+                          </span>
+                          <div>
+                            <p className="font-bold" style={{ color: '#001b3f' }}>{claim.courseName}</p>
+                            <p className="text-xs" style={{ color: '#25476a' }}>{claim.learner} - {claim.claimMonth}</p>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="font-medium" style={{ color: '#25476a' }}>{claim.mentor}</p>
-                        <p className="text-xs text-gray-500">{claim.notes}</p>
+                      <td className="px-4 py-5">
+                        <p className="text-sm" style={{ color: '#001b3f' }}>{claim.mentor}</p>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm" style={{ color: '#25476a' }}>{claim.courseName}</p>
-                        <p className="text-xs text-gray-500">{claim.learner} - {claim.claimMonth} - {claim.completedSessions}/{claim.totalSessions} sessions</p>
-                      </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-5">
                         <span
-                          className="inline-block rounded px-2 py-1 text-xs font-medium text-white"
+                          className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-white"
                           style={{
                             backgroundColor: claim.module === 'physical' ? '#25476a' :
                                             claim.module === 'home' ? '#38aae1' : '#feb139'
                           }}
                         >
-                          {claim.module === 'physical' ? 'Physical' : claim.module === 'home' ? 'Home' : 'Online'}
+                          {claim.module === 'physical' ? <BookOpen size={12} /> : claim.module === 'home' ? <Home size={12} /> : <Laptop size={12} />}
+                          {getMethodLabel(claim.module)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-bold" style={{ color: '#feb139' }}>
-                        KSh {getMentorCourseClaimAmount(claim).toLocaleString()}
+                      <td className="px-4 py-5 text-sm" style={{ color: '#001b3f' }}>
+                        {claim.completedSessions}/{claim.totalSessions}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                          claim.status === 'paid' ? 'bg-green-100 text-green-700' :
-                          claim.status === 'approved' ? 'bg-blue-100 text-blue-700' :
-                          'bg-orange-100 text-orange-700'
-                        }`}>
-                          {claim.status === 'paid' ? <CheckCircle size={14} /> : <Clock size={14} />}
-                          {claim.status === 'submitted' ? 'Submitted' : claim.status === 'approved' ? 'Approved' : 'Paid'}
+                      <td className="px-4 py-5 text-sm font-bold" style={{ color: '#001b3f' }}>
+                        KES {getMentorCourseClaimAmount(claim).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-5 text-sm" style={{ color: '#001b3f' }}>
+                        {format(new Date(claim.submittedAt), 'MMM dd, yyyy')}
+                      </td>
+                      <td className="px-4 py-5">
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`}>
+                          {getAdminStatusLabel(claim)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        {claim.status === 'submitted' && (
-                          <button
-                            type="button"
-                            onClick={() => approveClaim(claim.id)}
-                            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white"
-                            style={{ backgroundColor: '#38aae1' }}
-                          >
-                            <CheckCircle size={16} />
-                            Approve
-                          </button>
-                        )}
-                        {claim.status === 'approved' && (
-                          <button
-                            type="button"
-                            onClick={() => startClaimPayment(claim.id)}
-                            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white"
-                            style={{ backgroundColor: '#feb139' }}
-                          >
-                            <Plus size={16} />
-                            Pay
-                          </button>
-                        )}
-                        {claim.status === 'paid' && (
-                          <span className="text-sm font-semibold text-green-700">Paid out</span>
-                        )}
+                      <td className="px-4 py-5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openAdminClaim(claim.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100"
+                          style={{ color: '#25476a' }}
+                          aria-label={`View more for ${claim.courseName}`}
+                        >
+                          <ChevronRight size={18} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1108,12 +1931,21 @@ export default function App() {
             )}
             <button
               type="button"
+              onClick={() => setActivePage('supervisor')}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 font-semibold shadow-sm transition-colors hover:bg-gray-50"
+              style={{ color: '#25476a' }}
+            >
+              <FileText size={18} />
+              Supervisor Review
+            </button>
+            <button
+              type="button"
               onClick={() => setActivePage('claims')}
               className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 font-semibold shadow-sm transition-colors hover:bg-gray-50"
               style={{ color: '#25476a' }}
             >
               <ClipboardList size={18} />
-              Mentor Claims
+              Approved Claims
             </button>
           </div>
         </div>
@@ -1288,10 +2120,20 @@ export default function App() {
                         <CheckCircle size={14} />
                         Paid
                       </span>
+                    ) : claim.supervisorStatus === 'moved_to_finance' ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                        <Clock size={14} />
+                        Ready to Pay
+                      </span>
+                    ) : claim.supervisorStatus === 'rejected' ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                        <AlertCircle size={14} />
+                        Rejected
+                      </span>
                     ) : (
                       <span className="inline-flex shrink-0 items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
                         <Clock size={14} />
-                        Pending
+                        {getSupervisorStatusLabel(claim.supervisorStatus)}
                       </span>
                     )}
                   </div>
@@ -1411,10 +2253,20 @@ export default function App() {
                             <CheckCircle size={14} />
                             Paid
                           </span>
+                        ) : claim.supervisorStatus === 'moved_to_finance' ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            <Clock size={14} />
+                            Ready to Pay
+                          </span>
+                        ) : claim.supervisorStatus === 'rejected' ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                            <AlertCircle size={14} />
+                            Rejected
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
                             <Clock size={14} />
-                            Pending
+                            {getSupervisorStatusLabel(claim.supervisorStatus)}
                           </span>
                         )}
                       </td>

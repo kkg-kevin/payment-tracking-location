@@ -1,8 +1,8 @@
 # Payment Location Tracking
 
-Payment Location Tracking is a React admin dashboard for managing Digifunzi mentor session claims and mentor payouts across physical-location, home-location, and online learning sessions.
+Payment Location Tracking is a React admin dashboard for managing Digifunzi mentor session claims, supervisor approvals, finance handoff, and mentor payouts across physical-location, home-location, and online learning sessions.
 
-The application helps an admin review monthly mentor claims, approve valid claims, complete payouts through MPESA or bank transfer, and see payment status reflected across the dashboard.
+The application helps a supervisor review monthly mentor claims, validate payment eligibility, approve or reject claims, move approved claims to finance, and then helps an admin complete payouts through MPESA or bank transfer.
 
 ## Table of Contents
 
@@ -16,6 +16,7 @@ The application helps an admin review monthly mentor claims, approve valid claim
 - [Application Pages](#application-pages)
 - [Data Model](#data-model)
 - [Payout Logic](#payout-logic)
+- [Supervisor to Admin Status Mapping](#supervisor-to-admin-status-mapping)
 - [Current Data Source](#current-data-source)
 - [Development Notes](#development-notes)
 - [Limitations](#limitations)
@@ -29,7 +30,7 @@ Mentors teach learner sessions in three modules:
 - Home location sessions
 - Online sessions
 
-At the end of each month, mentors submit claims for completed sessions. A claim may cover one session, multiple sessions, or a full 12-session course. The admin reviews each submitted claim, approves it, and pays the mentor according to the module rate and the number of completed sessions.
+At the end of each month, mentors submit claims for completed sessions. A claim may cover one session, multiple sessions, or a full 12-session course. A supervisor reviews the claim first, validates course progress and supporting documents, then moves valid claims to finance. The admin pays finance-ready claims according to the module rate and the number of completed sessions.
 
 When payment is completed, the claim is marked as paid and any linked session records are also updated as paid.
 
@@ -38,19 +39,28 @@ When payment is completed, the claim is marked as paid and any linked session re
 1. A mentor completes one or more learner sessions during the month.
 2. The mentor submits a monthly claim for those completed sessions.
 3. The claim records mentor, learner, course, module, claim month, completed session count, and linked session IDs.
-4. The admin opens the Mentor Claims page.
-5. Submitted claims can be approved.
-6. Approved claims can be paid.
-7. Paying a claim opens the payment page with claim details already populated.
-8. The admin selects or enters payout method details.
-9. Completing payment marks the claim as paid.
-10. Linked sessions are updated to paid and reflected on the dashboard.
+4. The supervisor opens the Supervisor Review page.
+5. The supervisor reviews mentor details, course details, teaching module, payment type, progress, claim amount, eTIMS document, and course activity.
+6. The supervisor can preview the eTIMS document.
+7. Invalid claims can be rejected only with a rejection reason.
+8. Valid claims can be approved when they satisfy payment validation rules.
+9. Approved claims can be moved to finance.
+10. Moved-to-finance claims appear on the admin Mentor Claims page as ready to pay.
+11. The admin opens the claim payment page with claim details already populated.
+12. The admin selects MPESA or bank transfer and completes payout.
+13. Completing payment marks the claim as paid.
+14. Linked sessions are updated to paid and reflected on the dashboard.
 
 ## Features
 
 - Dashboard summaries for physical, home, and online modules
-- Mentor claim review workflow
-- Claim status tracking: submitted, approved, and paid
+- Supervisor claim review workflow
+- Supervisor validation for full and advance payment claims
+- eTIMS document preview
+- Required rejection reasons
+- Finance handoff for approved claims
+- Admin claim payout workflow
+- Claim status tracking across supervisor and admin stages
 - Claim amount calculations based on module rates and completed session counts
 - Payment form for mentor payouts
 - MPESA and bank-transfer payout options
@@ -159,7 +169,7 @@ Creates a production build.
 
 ### Dashboard
 
-The dashboard is the default page. It shows module-level earning summaries and session or claim details for the selected module.
+The dashboard is the default page. It shows module-level earning summaries and claim details for the selected module.
 
 The dashboard includes:
 
@@ -169,9 +179,33 @@ The dashboard includes:
 - Search input for filtering visible records
 - Mentor detail modal with per-mentor claim history and earning totals
 
+### Supervisor Review
+
+The Supervisor Review page is used before admin payout. It shows every claim in the review pipeline and lets a supervisor inspect:
+
+- Mentor and learner details
+- Course and module details
+- Payment type: full or advance
+- Course progress
+- Claim amount
+- eTIMS document preview
+- Course activity evidence
+
+Supervisor validation rules:
+
+- Full payment requires `100%` course progress.
+- Advance payment requires at least `30%` course progress.
+
+Supervisor statuses:
+
+- `Pending Review`: the claim has been submitted and needs supervisor action.
+- `Approved`: the claim passed supervisor validation but has not been sent to finance yet.
+- `Rejected`: the claim failed review and stores a rejection reason.
+- `Moved to Finance`: the approved claim is ready for admin payout.
+
 ### Mentor Claims
 
-The Mentor Claims page is used by the admin to review incoming mentor claims.
+The Mentor Claims page is used by the admin to pay claims that have been moved to finance by the supervisor.
 
 Claims include:
 
@@ -187,10 +221,10 @@ Claims include:
 - Claim status
 - Admin action
 
-Claim statuses:
+Admin claim statuses:
 
-- `submitted`: the claim has arrived and needs admin review.
-- `approved`: the claim has been approved and is ready for payout.
+- `submitted`: the claim exists but is still in supervisor review, approved by supervisor only, or rejected.
+- `approved`: the supervisor moved the claim to finance and it is ready for payout.
 - `paid`: the mentor has been paid for the claim.
 
 ### Payment Page
@@ -258,6 +292,15 @@ Important fields:
 - `totalSessions`: total sessions required for the course, currently 12
 - `submittedAt`: claim submission date
 - `status`: `submitted`, `approved`, or `paid`
+- `supervisorStatus`: `pending_review`, `approved`, `rejected`, or `moved_to_finance`
+- `paymentType`: `full` or `advance`
+- `progressPercent`: course completion percentage used for supervisor validation
+- `etimsDocumentId`: eTIMS document reference
+- `etimsDocumentUrl`: eTIMS document preview URL
+- `courseActivity`: activity evidence shown during supervisor review
+- `rejectionReason`: required reason when a supervisor rejects a claim
+- `reviewedAt`: supervisor review date
+- `movedToFinanceAt`: finance handoff date
 - `notes`: optional claim notes
 
 ### PaymentFormState
@@ -305,6 +348,18 @@ The app also defines Digifunzi and location earning rates for dashboard summary 
 - Digifunzi rate: `KSh 500`
 - Physical location rate: `KSh 500`
 
+## Supervisor to Admin Status Mapping
+
+The project has no backend yet, so the supervisor-to-admin handoff is simulated in local React state with shared mock claims.
+
+| Supervisor status | Admin status | Meaning |
+| --- | --- | --- |
+| `pending_review` | `submitted` | Claim is waiting for supervisor review. |
+| `approved` | `submitted` | Supervisor approved it, but finance has not received it yet. |
+| `rejected` | `submitted` | Claim is rejected and stores a rejection reason. |
+| `moved_to_finance` | `approved` | Claim is ready for admin payout. |
+| `moved_to_finance` after payout | `paid` | Admin completed MPESA or bank-transfer payout. |
+
 ## Current Data Source
 
 The app currently uses local mock data defined in `src/app/App.tsx`:
@@ -313,14 +368,16 @@ The app currently uses local mock data defined in `src/app/App.tsx`:
 - `additionalMockSessions`
 - `mockClaims`
 
-Application changes are stored in React state only. This means approvals, payments, new manual payments, and session status changes reset when the page is refreshed.
+Application changes are stored in React state only. This means supervisor approvals, rejections, finance handoffs, payments, new manual payments, and session status changes reset when the page is refreshed.
 
 ## Development Notes
 
 - The app is currently implemented as a single-page React app inside `src/app/App.tsx`.
 - Page navigation is handled with local React state through `activePage`.
+- Supervisor approval uses `supervisorStatus` and payment validation rules.
+- Moving a supervisor-approved claim to finance maps `supervisorStatus: moved_to_finance` to admin `status: approved`.
 - Claim filtering uses the selected module and search query.
-- Approved claim payment uses `selectedClaimId` to sync claim details into the payment form.
+- Finance-ready claim payment uses `selectedClaimId` to sync claim details into the payment form.
 - After claim payment, linked sessions are updated using the claim's `sessionIds`.
 - The `@` alias points to `src`.
 - The local `figmaAssetResolver` in `vite.config.ts` maps `figma:asset/...` imports to `src/assets/...`.
@@ -331,6 +388,7 @@ Application changes are stored in React state only. This means approvals, paymen
 - No database or persistent local storage is used.
 - No authentication or role-based access control is implemented.
 - Claims cannot currently be submitted from a real mentor account.
+- Supervisor and admin workflows currently run inside one local React app.
 - Payment completion is simulated in the UI.
 - There is no automated test suite yet.
 - Most domain logic and UI live in a single large component, which makes future scaling harder.
