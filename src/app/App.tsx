@@ -11,6 +11,7 @@ import {
   Plus,
   Smartphone,
   Building2,
+  DollarSign,
   ClipboardList,
   Eye,
   FileText,
@@ -28,7 +29,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 
 type ModuleType = 'physical' | 'home' | 'online' | 'center' | 'googlemeet';
 type PaymentStatus = 'paid' | 'pending';
-type PaymentMethod = 'MPESA' | 'Bank Transfer';
+type PaymentMethod = 'MPESA' | 'Cash';
 type ClaimStatus = 'submitted' | 'approved' | 'paid';
 type SupervisorClaimStatus = 'pending_review' | 'approved' | 'rejected' | 'moved_to_finance';
 type ClaimPaymentType = 'full' | 'advance';
@@ -67,6 +68,7 @@ type PaymentFormState = {
   cardExpiry: string;
   cardCvv: string;
   cashReceivedBy: string;
+  cashReceiptNumber: string;
 };
 
 type MentorClaim = {
@@ -130,7 +132,7 @@ const locationOptions = ['The Work Place', 'Java House', 'Artcaffee'];
 const SHARED_BANK_NAME = 'KCB Bank';
 const paymentMethods: Array<{ name: PaymentMethod; icon: typeof Smartphone }> = [
   { name: 'MPESA', icon: Smartphone },
-  { name: 'Bank Transfer', icon: Building2 },
+  { name: 'Cash', icon: DollarSign },
 ];
 
 const getClaimProgress = (completedSessions: number, totalSessions: number) => (
@@ -221,24 +223,24 @@ const mockSessions: Session[] = [
 const additionalMockSessions: Session[] = [
   { id: 31, mentor: 'Lydia Muturi', date: '2026-05-25', location: 'Java House', learner: 'Omar Ali', description: 'Code foundation', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'MPESA' },
   { id: 32, mentor: 'Jared Omondi', date: '2026-05-26', location: 'The Work Place', learner: 'Aisha Noor', description: 'Game design', module: 'physical', status: 'pending' },
-  { id: 33, mentor: 'Njeri Kamau', date: '2026-05-27', learner: 'Kwame Mensah', description: 'Introduction to coding', module: 'home', status: 'paid', amount: 1404, paymentMethod: 'Bank Transfer' },
+  { id: 33, mentor: 'Njeri Kamau', date: '2026-05-27', learner: 'Kwame Mensah', description: 'Introduction to coding', module: 'home', status: 'paid', amount: 1404, paymentMethod: 'Cash' },
   { id: 34, mentor: 'Felix Oduor', date: '2026-05-28', learner: 'Martha Wanjiru', description: 'Animation', module: 'online', status: 'paid', amount: 1000, paymentMethod: 'MPESA' },
   { id: 35, mentor: 'Susan Mwende', date: '2026-05-29', location: 'Artcaffee', learner: 'John Doe', description: 'Robotics with Quarky', module: 'physical', status: 'pending' },
   { id: 36, mentor: 'Patrick Njoroge', date: '2026-05-30', learner: 'Jane Otieno', description: 'Story development', module: 'online', status: 'paid', amount: 1000, paymentMethod: 'MPESA' },
-  { id: 37, mentor: 'Rachel Kimani', date: '2026-06-01', location: 'Java House', learner: 'Samuel Kiplimo', description: 'Animation', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Bank Transfer' },
+  { id: 37, mentor: 'Rachel Kimani', date: '2026-06-01', location: 'Java House', learner: 'Samuel Kiplimo', description: 'Animation', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Cash' },
   { id: 38, mentor: 'Tom Ouma', date: '2026-06-02', learner: 'Ruth Ndegwa', description: 'Code foundation', module: 'home', status: 'pending' },
   { id: 39, mentor: 'Alice Njoroge', date: '2026-06-03', location: 'The Work Place', learner: 'Brian Obiero', description: 'Programming in Python', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'MPESA' },
   { id: 40, mentor: 'Charles Kibet', date: '2026-06-04', learner: 'Nancy Wanjiku', description: 'Game design', module: 'online', status: 'pending' },
-  { id: 41, mentor: 'Dorcas Awuor', date: '2026-06-05', location: 'Artcaffee', learner: 'Kevin Mwangi', description: 'Story development', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Bank Transfer' },
+  { id: 41, mentor: 'Dorcas Awuor', date: '2026-06-05', location: 'Artcaffee', learner: 'Kevin Mwangi', description: 'Story development', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Cash' },
   { id: 42, mentor: 'Evelyn Otieno', date: '2026-06-06', learner: 'Neema Odhiambo', description: 'Simple robotics', module: 'home', status: 'paid', amount: 1404, paymentMethod: 'MPESA' },
-  { id: 43, mentor: 'Francis Mwangi', date: '2026-06-07', learner: 'Isabella Mbugua', description: 'Robotics with Quarky', module: 'online', status: 'paid', amount: 1000, paymentMethod: 'Bank Transfer' },
+  { id: 43, mentor: 'Francis Mwangi', date: '2026-06-07', learner: 'Isabella Mbugua', description: 'Robotics with Quarky', module: 'online', status: 'paid', amount: 1000, paymentMethod: 'Cash' },
   { id: 44, mentor: 'Gladys Wanja', date: '2026-06-08', location: 'Java House', learner: 'Bradley Munene', description: 'Introduction to coding', module: 'physical', status: 'pending' },
   { id: 45, mentor: 'Henry Mutiso', date: '2026-06-09', learner: 'Nayla Mwangi', description: 'Animation', module: 'home', status: 'paid', amount: 1404, paymentMethod: 'MPESA' },
-  { id: 46, mentor: 'Irene Chebon', date: '2026-06-10', location: 'Artcaffee', learner: 'Peter Mbugua', description: 'Programming in Python', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Bank Transfer' },
+  { id: 46, mentor: 'Irene Chebon', date: '2026-06-10', location: 'Artcaffee', learner: 'Peter Mbugua', description: 'Programming in Python', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Cash' },
   { id: 47, mentor: 'James Otieno', date: '2026-06-11', learner: 'Leonella Thutu', description: 'Code foundation', module: 'online', status: 'pending' },
   { id: 48, mentor: 'Khadija Noor', date: '2026-06-12', location: 'The Work Place', learner: 'Natasha Kinuthia', description: 'Story development', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'MPESA' },
   { id: 49, mentor: 'Larry Kimani', date: '2026-06-13', learner: 'Author Gatimu', description: 'Simple robotics', module: 'home', status: 'pending' },
-  { id: 50, mentor: 'Moses Karanja', date: '2026-06-14', location: 'Java House', learner: 'Amina Hassan', description: 'Robotics with Quarky', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Bank Transfer' },
+  { id: 50, mentor: 'Moses Karanja', date: '2026-06-14', location: 'Java House', learner: 'Amina Hassan', description: 'Robotics with Quarky', module: 'physical', status: 'paid', amount: 1904, paymentMethod: 'Cash' },
 ];
 
 // Merge additional sessions into the main mockSessions array so the rest of the app uses them
@@ -447,6 +449,7 @@ export default function App() {
     cardExpiry: '',
     cardCvv: '',
     cashReceivedBy: '',
+    cashReceiptNumber: '',
   });
 
   const updatePaymentForm = <K extends keyof PaymentFormState>(field: K, value: PaymentFormState[K]) => {
@@ -1555,184 +1558,11 @@ export default function App() {
             </div>
 
             <div className="p-4 sm:p-6">
-              {selectedClaim ? (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 sm:p-6">
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Approved Claim #{selectedClaim.id}</p>
-                      <h3 className="mt-1 text-xl font-bold" style={{ color: '#25476a' }}>{selectedClaim.mentor}</h3>
-                      <p className="text-sm text-gray-600">{selectedClaim.claimMonth} monthly claim submitted {format(new Date(selectedClaim.submittedAt), 'MMM dd, yyyy')}</p>
-                    </div>
-                    <span className="inline-flex w-fit items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                      <CheckCircle size={14} />
-                      Approved
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Learner</p>
-                      <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>{selectedClaim.learner}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Course Sessions</p>
-                      <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>{selectedClaim.completedSessions}/{selectedClaim.totalSessions} completed</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Module</p>
-                      <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>
-                        {selectedClaim.module === 'physical' ? 'Physical Location' : selectedClaim.module === 'home' ? 'Home Location' : 'Online Course'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Payout Amount</p>
-                      <p className="mt-1 text-lg font-bold" style={{ color: '#feb139' }}>
-                        KSh {getMentorCourseClaimAmount(selectedClaim).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Course / Description</p>
-                      <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>{selectedClaim.courseName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Location</p>
-                      <p className="mt-1 font-semibold" style={{ color: '#25476a' }}>
-                        {selectedClaim.module === 'physical' ? selectedClaim.courseSessions[0]?.location || 'Physical location' : 'Not applicable'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedClaim.notes && (
-                    <div className="mt-4 rounded-md bg-white p-3 text-sm text-gray-600">
-                      {selectedClaim.notes}
-                    </div>
-                  )}
-                </div>
-              ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>
-                    <User size={14} style={{ color: '#38aae1' }} />
-                    Learner Name
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    value={paymentForm.learner}
-                    onChange={(event) => updatePaymentForm('learner', event.target.value)}
-                    placeholder="e.g. John Kamau"
-                    className="w-full rounded-md border border-gray-200 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
-                    style={{ color: '#25476a' }}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>
-                    <User size={14} style={{ color: '#38aae1' }} />
-                    Mentor Name
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    value={paymentForm.mentor}
-                    onChange={(event) => updatePaymentForm('mentor', event.target.value)}
-                    placeholder="e.g. Brian Otieno"
-                    className="w-full rounded-md border border-gray-200 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
-                    style={{ color: '#25476a' }}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>
-                    <Calendar size={14} style={{ color: '#38aae1' }} />
-                    Payment Date
-                  </span>
-                  <input
-                    type="date"
-                    required
-                    value={paymentForm.date}
-                    onChange={(event) => updatePaymentForm('date', event.target.value)}
-                    className="w-full rounded-md border border-gray-200 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
-                    style={{ color: '#25476a' }}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>
-                    <BookOpen size={14} style={{ color: '#38aae1' }} />
-                    Module
-                  </span>
-                  <select
-                    value={paymentForm.module}
-                    onChange={(event) => updatePaymentForm('module', event.target.value as ModuleType)}
-                    className="w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
-                    style={{ color: '#25476a' }}
-                  >
-                    <option value="physical">Physical Location</option>
-                    <option value="home">Home Location</option>
-                    <option value="online">Online Sessions</option>
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>
-                    <BookOpen size={14} style={{ color: '#38aae1' }} />
-                    Course / Description
-                  </span>
-                  <select
-                    required
-                    value={paymentForm.description}
-                    onChange={(event) => updatePaymentForm('description', event.target.value)}
-                    className="w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
-                    style={{ color: '#25476a' }}
-                  >
-                    <option value="">Select a course</option>
-                    {courseOptions.map((course) => (
-                      <option key={course} value={course}>{course}</option>
-                    ))}
-                  </select>
-                </label>
-
-                {paymentForm.module === 'physical' && (
-                  <label className="block">
-                    <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>
-                      <MapPin size={14} style={{ color: '#38aae1' }} />
-                      Location
-                    </span>
-                    <select
-                      required
-                      value={paymentForm.location}
-                      onChange={(event) => updatePaymentForm('location', event.target.value)}
-                      className="w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
-                      style={{ color: '#25476a' }}
-                    >
-                      {locationOptions.map((location) => (
-                        <option key={location} value={location}>{location}</option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>
-                    KSh
-                    Amount
-                  </span>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={paymentForm.amount}
-                    onChange={(event) => updatePaymentForm('amount', event.target.value)}
-                    className="w-full rounded-md border border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2"
-                    style={{ color: '#25476a' }}
-                  />
-                </label>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 sm:p-6">
+                <p className="text-sm text-slate-600">
+                  {selectedClaim ? `Claim #${selectedClaim.id} — Pay KSh ${getMentorCourseClaimAmount(selectedClaim).toLocaleString()}` : 'Select a payment method to proceed.'}
+                </p>
               </div>
-              )}
 
               <div className="mt-5">
                 <p className="mb-3 text-xs font-bold uppercase tracking-wide" style={{ color: '#25476a' }}>Payment Method</p>
@@ -1783,48 +1613,42 @@ export default function App() {
                 </div>
               )}
 
-              {paymentForm.paymentMethod === 'Bank Transfer' && (
+              {paymentForm.paymentMethod === 'Cash' && (
                 <div className="mt-4 rounded-lg border-2 p-4 sm:p-6" style={{ borderColor: '#25476a', background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)' }}>
                   <div className="mb-5 flex items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-lg text-white" style={{ backgroundColor: '#25476a' }}>
-                      <Building2 size={22} />
+                      <DollarSign size={22} />
                     </span>
-                    <h3 className="text-lg font-bold" style={{ color: '#25476a' }}>Bank Transfer Details</h3>
+                    <h3 className="text-lg font-bold" style={{ color: '#25476a' }}>Cash Payment Details</h3>
                   </div>
                   <div className="grid gap-4">
-                    <div>
-                      <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Shared Bank</span>
-                      <div className="rounded-md border border-gray-300 bg-gray-50 px-4 py-3 text-sm font-semibold" style={{ color: '#25476a' }}>
-                        {SHARED_BANK_NAME}
-                      </div>
-                    </div>
                     <label className="block">
-                      <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Account Number</span>
+                      <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Received By</span>
                       <input
                         type="text"
                         required
-                        value={paymentForm.bankAccountNumber}
-                        onChange={(event) => updatePaymentForm('bankAccountNumber', event.target.value)}
-                        placeholder="Enter your account number"
+                        value={paymentForm.cashReceivedBy}
+                        onChange={(event) => updatePaymentForm('cashReceivedBy', event.target.value)}
+                        placeholder="Name of person who received the cash"
                         className="w-full rounded-md border border-gray-300 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
                         style={{ color: '#25476a' }}
                       />
                     </label>
+
                     <label className="block">
-                      <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Account Name</span>
+                      <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Receipt / Reference Number (optional)</span>
                       <input
                         type="text"
-                        required
-                        value={paymentForm.bankAccountName}
-                        onChange={(event) => updatePaymentForm('bankAccountName', event.target.value)}
-                        placeholder="Name as it appears on account"
+                        value={paymentForm.cashReceiptNumber}
+                        onChange={(event) => updatePaymentForm('cashReceiptNumber', event.target.value)}
+                        placeholder="Receipt number or internal reference"
                         className="w-full rounded-md border border-gray-300 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2"
                         style={{ color: '#25476a' }}
                       />
                     </label>
                   </div>
                   <div className="mt-4 rounded-md px-4 py-3 text-sm font-semibold" style={{ backgroundColor: '#e5e9ee', color: '#25476a' }}>
-                    Transfer will be initiated from your account. Please ensure you have sufficient funds.
+                    Record cash in your cash ledger and attach a receipt photo if available.
                   </div>
                 </div>
               )}
