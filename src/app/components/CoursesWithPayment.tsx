@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { X, DollarSign } from 'lucide-react';
+import { X, DollarSign, Calendar } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import * as Dialog from '@radix-ui/react-dialog';
+import { format } from 'date-fns';
 
 // Types
 type Course = {
@@ -13,6 +14,12 @@ type Course = {
   price: number;
   description: string;
   level: string;
+};
+
+type PaymentFormData = {
+  amount: string;
+  dateApproved: string;
+  datePaid: string;
 };
 
 // Sample courses data
@@ -63,7 +70,39 @@ interface PaymentModalProps {
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, onClose }) => {
-  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'bank'>('mpesa');
+  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'cash'>('mpesa');
+  const [formData, setFormData] = useState<PaymentFormData>({
+    amount: course?.price.toString() || '',
+    dateApproved: format(new Date(), 'yyyy-MM-dd'),
+    datePaid: format(new Date(), 'yyyy-MM-dd'),
+  });
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitted(true);
+    // Here you would normally submit the payment data to your backend
+    console.log('Payment submitted:', { paymentMethod, ...formData });
+    
+    // Optionally close modal after successful submission
+    setTimeout(() => {
+      onClose();
+      setSubmitted(false);
+      setFormData({
+        amount: course?.price.toString() || '',
+        dateApproved: format(new Date(), 'yyyy-MM-dd'),
+        datePaid: format(new Date(), 'yyyy-MM-dd'),
+      });
+    }, 1500);
+  };
 
   if (!isOpen || !course) return null;
 
@@ -74,7 +113,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, onClose }) 
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
 
         {/* Modal content */}
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <Dialog.Title className="text-2xl font-bold">Payment for {course.name}</Dialog.Title>
@@ -98,7 +137,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, onClose }) 
                 <span className="font-semibold">{course.instructor}</span>
               </div>
               <div className="flex justify-between pt-2 border-t">
-                <span className="font-semibold text-gray-700">Amount:</span>
+                <span className="font-semibold text-gray-700">Default Amount:</span>
                 <span className="text-xl font-bold text-blue-600">KSh {course.price.toLocaleString()}</span>
               </div>
             </div>
@@ -107,11 +146,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, onClose }) 
           {/* Payment Method Selection */}
           <div className="mb-6">
             <h3 className="font-semibold mb-3">Select Payment Method</h3>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {[
                 { id: 'mpesa', label: 'M-Pesa', icon: '📱' },
-                { id: 'card', label: 'Credit/Debit Card', icon: '💳' },
-                { id: 'bank', label: 'Bank Transfer', icon: '🏦' },
+                { id: 'cash', label: 'Cash', icon: '💰' },
               ].map((method) => (
                 <label key={method.id} className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                   <input
@@ -119,7 +157,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, onClose }) 
                     name="payment-method"
                     value={method.id}
                     checked={paymentMethod === method.id}
-                    onChange={(e) => setPaymentMethod(e.target.value as 'mpesa' | 'card' | 'bank')}
+                    onChange={(e) => setPaymentMethod(e.target.value as 'mpesa' | 'cash')}
                     className="h-4 w-4"
                   />
                   <span className="ml-3 text-lg">{method.icon}</span>
@@ -129,48 +167,103 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, course, onClose }) 
             </div>
           </div>
 
-          {/* Payment Method Details */}
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            {paymentMethod === 'mpesa' && (
+          {/* Payment Form */}
+          <form onSubmit={handleSubmit} className="mb-6">
+            <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              {/* Amount Field */}
               <div>
-                <p className="font-semibold mb-2">M-Pesa Instructions:</p>
-                <ol className="text-sm space-y-1 list-decimal list-inside">
-                  <li>Open M-Pesa on your phone</li>
-                  <li>Select "Lipa Na M-Pesa Online"</li>
-                  <li>Enter business code: 174379</li>
-                  <li>Enter amount: KSh {course.price}</li>
-                  <li>Enter your PIN</li>
-                </ol>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Amount (KSh)
+                </label>
+                <input
+                  type="number"
+                  name="amount"
+                  value={formData.amount}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter amount"
+                />
               </div>
-            )}
-            {paymentMethod === 'card' && (
-              <div>
-                <p className="font-semibold mb-2">Card Details:</p>
-                <p className="text-sm mb-3">You will be redirected to a secure payment gateway.</p>
-              </div>
-            )}
-            {paymentMethod === 'bank' && (
-              <div>
-                <p className="font-semibold mb-2">Bank Details:</p>
-                <div className="text-sm space-y-1">
-                  <p><span className="font-medium">Bank:</span> KCB Bank Kenya</p>
-                  <p><span className="font-medium">Account:</span> 1234567890</p>
-                  <p><span className="font-medium">Reference:</span> COURSE-{course.id}</p>
-                </div>
-              </div>
-            )}
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
-              <DollarSign className="h-4 w-4 mr-2" />
-              Proceed to Payment
-            </Button>
-          </div>
+              {/* Date Approved Field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <Calendar className="h-4 w-4 inline mr-1" />
+                  Date Approved
+                </label>
+                <input
+                  type="date"
+                  name="dateApproved"
+                  value={formData.dateApproved}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Date Paid Field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <Calendar className="h-4 w-4 inline mr-1" />
+                  Date Paid
+                </label>
+                <input
+                  type="date"
+                  name="datePaid"
+                  value={formData.datePaid}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Payment Method Specific Instructions */}
+              {paymentMethod === 'mpesa' && (
+                <div className="mt-4 p-3 bg-white rounded border border-blue-300">
+                  <p className="font-semibold mb-2 text-gray-700">M-Pesa Instructions:</p>
+                  <ol className="text-sm space-y-1 list-decimal list-inside text-gray-600">
+                    <li>Open M-Pesa on your phone</li>
+                    <li>Select "Lipa Na M-Pesa Online"</li>
+                    <li>Enter business code: 174379</li>
+                    <li>Enter amount: KSh {formData.amount}</li>
+                    <li>Enter your PIN to confirm</li>
+                  </ol>
+                </div>
+              )}
+
+              {paymentMethod === 'cash' && (
+                <div className="mt-4 p-3 bg-white rounded border border-blue-300">
+                  <p className="font-semibold mb-2 text-gray-700">Cash Payment Information:</p>
+                  <ul className="text-sm space-y-1 text-gray-600">
+                    <li>• Amount: <span className="font-semibold">KSh {formData.amount}</span></li>
+                    <li>• Date Approved: <span className="font-semibold">{formData.dateApproved}</span></li>
+                    <li>• Date Paid: <span className="font-semibold">{formData.datePaid}</span></li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" className="flex-1" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                {submitted ? 'Processing...' : 'Confirm Payment'}
+              </Button>
+            </div>
+
+            {submitted && (
+              <div className="mt-4 p-3 bg-green-100 border border-green-500 rounded-md text-green-700 text-sm font-semibold">
+                ✓ Payment submitted successfully!
+              </div>
+            )}
+          </form>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
