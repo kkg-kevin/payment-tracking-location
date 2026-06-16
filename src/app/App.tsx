@@ -431,6 +431,7 @@ export default function App() {
   const [selectedEtimsClaimId, setSelectedEtimsClaimId] = useState<number | null>(null);
   const [rejectionReasons, setRejectionReasons] = useState<Record<number, string>>({});
   const [paymentSaved, setPaymentSaved] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
     learner: '',
     mentor: '',
@@ -596,6 +597,7 @@ export default function App() {
     if (!claim || claim.status !== 'approved' || claim.supervisorStatus !== 'moved_to_finance') return;
 
     setSelectedClaimId(claim.id);
+    setIsPaymentModalOpen(true);
     setPaymentSaved(false);
     setPaymentForm((current) => ({
       ...current,
@@ -609,7 +611,6 @@ export default function App() {
       paymentMethod: 'MPESA',
       bankName: SHARED_BANK_NAME,
     }));
-    setActivePage('payment');
   };
 
   const handlePaymentSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -634,6 +635,7 @@ export default function App() {
         setSelectedModule(paidClaim.module);
         setSearchQuery('');
         setPaymentSaved(true);
+        setIsPaymentModalOpen(false);
         setSelectedClaimId(null);
         setActivePage('dashboard');
         return;
@@ -1345,6 +1347,146 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* Payment Modal - appears on top of claim details */}
+        {isPaymentModalOpen && selectedClaimId !== null && selectedAdminClaim && (
+          <Dialog.Root open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+            <Dialog.Portal>
+              {/* Dark overlay background */}
+              <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
+
+              {/* Modal content */}
+              <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white shadow-lg max-h-[90vh] overflow-y-auto">
+                {/* Close button */}
+                <div className="sticky top-0 flex items-center justify-between border-b bg-white p-6">
+                  <div>
+                    <Dialog.Title className="text-2xl font-bold">Pay Mentor Claim</Dialog.Title>
+                    <p className="text-sm text-gray-600 mt-1">Send an approved mentor payout and mark the claim as paid.</p>
+                  </div>
+                  <button
+                    onClick={() => setIsPaymentModalOpen(false)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handlePaymentSubmit} className="p-6">
+                  {/* Claim Summary */}
+                  <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <p className="text-sm text-slate-600">
+                      Claim #{selectedAdminClaim.id} — Pay KSh {getMentorCourseClaimAmount(selectedAdminClaim).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Payment Method */}
+                  <div className="mb-6">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-900">Payment Method</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {paymentMethods.map(({ name, icon: MethodIcon }) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => updatePaymentForm('paymentMethod', name)}
+                          className={`rounded-lg border p-4 text-center text-sm font-semibold shadow-sm transition-all focus:outline-none focus:ring-2 ${
+                            paymentForm.paymentMethod === name ? 'border-transparent text-white' : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }`}
+                          style={paymentForm.paymentMethod === name ? { backgroundColor: '#25476a' } : { color: '#25476a' }}
+                        >
+                          <span className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg ${paymentForm.paymentMethod === name ? 'bg-white/20' : 'bg-gray-100'}`}>
+                            <MethodIcon size={20} />
+                          </span>
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Payment Details */}
+                  {paymentForm.paymentMethod === 'MPESA' && (
+                    <div className="mb-6 rounded-lg border-2 p-4" style={{ borderColor: '#38aae1', background: 'linear-gradient(135deg, #f2fbff 0%, #ffffff 100%)' }}>
+                      <div className="mb-4 flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-lg text-white" style={{ backgroundColor: '#38aae1' }}>
+                          <Smartphone size={20} />
+                        </span>
+                        <h3 className="text-lg font-bold" style={{ color: '#25476a' }}>MPESA Payment</h3>
+                      </div>
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Phone Number</span>
+                        <input
+                          type="tel"
+                          required
+                          value={paymentForm.mpesaPhone}
+                          onChange={(event) => updatePaymentForm('mpesaPhone', event.target.value)}
+                          placeholder="0712345678"
+                          className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm"
+                          style={{ color: '#25476a' }}
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {paymentForm.paymentMethod === 'Cash' && (
+                    <div className="mb-6 rounded-lg border-2 p-4" style={{ borderColor: '#25476a', background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)' }}>
+                      <div className="mb-4 flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-lg text-white" style={{ backgroundColor: '#25476a' }}>
+                          <DollarSign size={20} />
+                        </span>
+                        <h3 className="text-lg font-bold" style={{ color: '#25476a' }}>Cash Payment</h3>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Received By</span>
+                          <input
+                            type="text"
+                            required
+                            value={paymentForm.cashReceivedBy}
+                            onChange={(event) => updatePaymentForm('cashReceivedBy', event.target.value)}
+                            placeholder="Name of person who received the cash"
+                            className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm"
+                            style={{ color: '#25476a' }}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-semibold" style={{ color: '#25476a' }}>Receipt / Reference Number (optional)</span>
+                          <input
+                            type="text"
+                            value={paymentForm.cashReceiptNumber}
+                            onChange={(event) => updatePaymentForm('cashReceiptNumber', event.target.value)}
+                            placeholder="Receipt number or internal reference"
+                            className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm"
+                            style={{ color: '#25476a' }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-end border-t pt-6">
+                    <button
+                      type="button"
+                      onClick={() => setIsPaymentModalOpen(false)}
+                      className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-5 py-2 font-semibold shadow-sm hover:bg-gray-50"
+                      style={{ color: '#25476a' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 font-semibold text-white shadow-md hover:brightness-95"
+                      style={{ backgroundColor: '#feb139' }}
+                    >
+                      <Plus size={18} />
+                      Pay Mentor
+                    </button>
+                  </div>
+                </form>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+        )}
       </div>
     );
   }
