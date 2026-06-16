@@ -824,22 +824,39 @@ export default function App() {
 
   const getAssignmentStatusClass = (status: AssignmentStatus) => (
     status === 'graded'
-      ? 'bg-green-50 text-green-700 border-green-200'
+      ? 'text-white border-transparent' 
       : status === 'submitted'
-        ? 'bg-orange-50 text-orange-700 border-orange-200'
+        ? 'text-white border-transparent'
         : 'bg-gray-100 text-gray-700 border-gray-200'
   );
+  
+  const getAssignmentStatusStyle = (status: AssignmentStatus) => {
+    if (status === 'graded') return { backgroundColor: '#38aae1' };
+    if (status === 'submitted') return { backgroundColor: '#feb139' };
+    return {};
+  };
 
   const getReportStatusLabel = (status: ReportStatus) => (status === 'graded' ? 'Graded' : 'Pending');
 
   const getReportStatusClass = (status: ReportStatus) => (
-    status === 'graded' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-pink-50 text-pink-700 border-pink-200'
+    status === 'graded' ? 'text-white border-transparent' : 'text-white border-transparent'
   );
+  
+  const getReportStatusStyle = (status: ReportStatus) => {
+    if (status === 'graded') return { backgroundColor: '#38aae1' };
+    return { backgroundColor: '#feb139' };
+  };
 
   const getClaimStatusPillClass = (claim: MentorClaim) => {
-    if (claim.status === 'paid' || claim.status === 'approved') return 'bg-green-50 text-green-700';
-    if (claim.supervisorStatus === 'rejected') return 'bg-red-50 text-red-700';
-    return 'bg-yellow-50 text-yellow-700';
+    if (claim.status === 'paid' || claim.status === 'approved') return 'text-white';
+    if (claim.supervisorStatus === 'rejected') return 'text-white';
+    return 'text-white';
+  };
+  
+  const getClaimStatusStyle = (claim: MentorClaim) => {
+    if (claim.status === 'paid' || claim.status === 'approved') return { backgroundColor: '#38aae1' };
+    if (claim.supervisorStatus === 'rejected') return { backgroundColor: '#25476a' };
+    return { backgroundColor: '#feb139' };
   };
 
   const getMethodLabel = (module: ModuleType) => (
@@ -968,13 +985,13 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {isAssignmentPage ? (
                   <>
-                    <div className="rounded-lg bg-green-50 px-6 py-3 text-center">
-                      <p className="text-lg font-bold text-green-700">{gradedAssignments}</p>
-                      <p className="text-xs font-bold uppercase tracking-wide text-green-700">Graded</p>
+                    <div className="rounded-lg px-6 py-3 text-center text-white" style={{ backgroundColor: '#38aae1' }}>
+                      <p className="text-lg font-bold">{gradedAssignments}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide">Graded</p>
                     </div>
-                    <div className="rounded-lg bg-orange-50 px-6 py-3 text-center">
-                      <p className="text-lg font-bold text-orange-700">{submittedAssignments}</p>
-                      <p className="text-xs font-bold uppercase tracking-wide text-orange-700">Submitted</p>
+                    <div className="rounded-lg px-6 py-3 text-center text-white" style={{ backgroundColor: '#feb139' }}>
+                      <p className="text-lg font-bold">{submittedAssignments}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide">Submitted</p>
                     </div>
                     <div className="rounded-lg bg-gray-100 px-6 py-3 text-center">
                       <p className="text-lg font-bold text-slate-800">{issuedAssignments}</p>
@@ -983,13 +1000,13 @@ export default function App() {
                   </>
                 ) : (
                   <>
-                    <div className="rounded-lg bg-green-50 px-8 py-3 text-center">
-                      <p className="text-lg font-bold text-green-700">{gradedReports}</p>
-                      <p className="text-xs font-bold uppercase tracking-wide text-green-700">Graded</p>
+                    <div className="rounded-lg px-8 py-3 text-center text-white" style={{ backgroundColor: '#38aae1' }}>
+                      <p className="text-lg font-bold">{gradedReports}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide">Graded</p>
                     </div>
-                    <div className="rounded-lg bg-pink-50 px-8 py-3 text-center">
-                      <p className="text-lg font-bold text-pink-700">{pendingReports}</p>
-                      <p className="text-xs font-bold uppercase tracking-wide text-pink-700">Pending</p>
+                    <div className="rounded-lg px-8 py-3 text-center text-white" style={{ backgroundColor: '#feb139' }}>
+                      <p className="text-lg font-bold">{pendingReports}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide">Pending</p>
                     </div>
                   </>
                 )}
@@ -1162,9 +1179,9 @@ export default function App() {
             <div className="border-b border-gray-200 p-6 lg:border-b-0 lg:border-r">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
                 <div className="lg:col-span-2">
-                  <div className="rounded-lg border border-green-100 bg-green-50 p-6 h-full">
-                    <p className="text-xs font-bold uppercase tracking-wide text-green-700">Amount Requested</p>
-                    <p className="mt-4 text-3xl font-bold text-emerald-800">KSh {requestedAmount.toLocaleString()}</p>
+                  <div className="rounded-lg border p-6 h-full" style={{ borderColor: '#38aae1', backgroundColor: '#e8f7fd' }}>
+                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#38aae1' }}>Amount Requested</p>
+                    <p className="mt-4 text-3xl font-bold" style={{ color: '#38aae1' }}>KSh {requestedAmount.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
@@ -1172,9 +1189,9 @@ export default function App() {
                     <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Estimated Earnings</p>
                     <p className="mt-2 text-lg font-bold text-gray-800">KSh {estimatedEarnings.toLocaleString()}</p>
                   </div>
-                  <div className="rounded-lg border border-orange-100 bg-orange-50 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-orange-700">Estimated Advance</p>
-                    <p className="mt-2 text-lg font-bold text-orange-700">KSh {advancePayable.toLocaleString()}</p>
+                  <div className="rounded-lg border p-4" style={{ borderColor: '#feb139', backgroundColor: '#fffbf0' }}>
+                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#feb139' }}>Estimated Advance</p>
+                    <p className="mt-2 text-lg font-bold" style={{ color: '#feb139' }}>KSh {advancePayable.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -1194,7 +1211,7 @@ export default function App() {
                   Pay Mentor
                 </button>
               ) : (
-                <div className="mt-6 rounded-lg bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+                <div className="mt-6 rounded-lg px-4 py-3 text-sm font-semibold text-white" style={{ backgroundColor: '#38aae1' }}>
                   Payment status: {selectedAdminClaim.status === 'paid' ? 'Paid' : getAdminStatusLabel(selectedAdminClaim)}
                 </div>
               )}
@@ -1265,7 +1282,7 @@ export default function App() {
                           </div>
                         </td>
                         <td className="px-5 py-4">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${student.attendance === 'present' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                          <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: student.attendance === 'present' ? '#38aae1' : '#feb139' }}>
                             {student.attendance === 'present' ? 'Present' : 'Absent'}
                           </span>
                         </td>
@@ -1274,6 +1291,7 @@ export default function App() {
                             type="button"
                             onClick={() => setActivePage('assignment-detail')}
                             className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${getAssignmentStatusClass(student.assignmentStatus)}`}
+                            style={getAssignmentStatusStyle(student.assignmentStatus)}
                           >
                             {student.assignmentStatus}
                           </button>
@@ -1283,6 +1301,7 @@ export default function App() {
                             type="button"
                             onClick={() => setActivePage('report-detail')}
                             className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getReportStatusClass(student.reportStatus)}`}
+                            style={getReportStatusStyle(student.reportStatus)}
                           >
                             {getReportStatusLabel(student.reportStatus)}
                           </button>
@@ -1310,7 +1329,7 @@ export default function App() {
                       </p>
                       <p className="text-xs text-slate-500">{format(new Date(selectedAdminClaim.submittedAt), 'MMM dd, yyyy')} 08:36 AM</p>
                     </div>
-                    <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">{selectedAdminClaim.status === 'paid' ? 'Paid' : getAdminStatusLabel(selectedAdminClaim)}</span>
+                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={getClaimStatusStyle(selectedAdminClaim)}>{selectedAdminClaim.status === 'paid' ? 'Paid' : getAdminStatusLabel(selectedAdminClaim)}</span>
                   </div>
                   <div className="mt-4 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 text-sm">
                     <span className="text-sky-700">Amount</span>
@@ -1546,7 +1565,7 @@ export default function App() {
                       <p className="font-semibold" style={{ color: '#001b3f' }}>{claim.courseName}</p>
                       <p className="text-sm" style={{ color: '#25476a' }}>{claim.learner} - {claim.claimMonth}</p>
                     </div>
-                    <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`}>
+                    <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`} style={getClaimStatusStyle(claim)}>
                       {getAdminStatusLabel(claim)}
                     </span>
                   </div>
@@ -1636,7 +1655,7 @@ export default function App() {
                         {format(new Date(claim.submittedAt), 'MMM dd, yyyy')}
                       </td>
                       <td className="px-4 py-5">
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`}>
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`} style={getClaimStatusStyle(claim)}>
                           {getAdminStatusLabel(claim)}
                         </span>
                       </td>
