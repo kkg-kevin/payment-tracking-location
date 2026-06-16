@@ -1565,7 +1565,7 @@ export default function App() {
                       <p className="font-semibold" style={{ color: '#001b3f' }}>{claim.courseName}</p>
                       <p className="text-sm" style={{ color: '#25476a' }}>{claim.learner} - {claim.claimMonth}</p>
                     </div>
-                    <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`}>
+                    <span className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`} style={getClaimStatusStyle(claim)}>
                       {getAdminStatusLabel(claim)}
                     </span>
                   </div>
@@ -1655,7 +1655,7 @@ export default function App() {
                         {format(new Date(claim.submittedAt), 'MMM dd, yyyy')}
                       </td>
                       <td className="px-4 py-5">
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`}>
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getClaimStatusPillClass(claim)}`} style={getClaimStatusStyle(claim)}>
                           {getAdminStatusLabel(claim)}
                         </span>
                       </td>
